@@ -171,12 +171,27 @@ int logicalShift(int x, int n) {
  *   Rating: 4 
  */
 int bitCount(int x) {
-  x = ((x&0xAAAAAAAA)>>1) + x&0x55555555;
-  x = ((x&0xCCCCCCCC)>>2) + x&0x33333333;
-  x = ((x&0xF0F0F0F0)>>4) + x&0x0F0F0F0F;
-  x = ((x&0xFF00FF00)>>8) + x&0x00FF00FF;
-  x = ((x&0xFFFF0000)>>16) + x&0x0000FFFF;
-  return x;
+  /* Generate 0x55555555 */
+  int mask = 0x55;
+  mask += mask<<8;
+  mask += mask<<16;
+  x = ((x>>1)&mask) + (x&mask);
+  /* Generate 0x33333333 */
+  mask = 0x33;
+  mask += mask<<8;
+  mask += mask<<16;
+  x = ((x>>2)&mask) + (x&mask);
+  /* Generate 0x0F0F0F0F */
+  mask = 0x0F;
+  mask += mask<<8;
+  mask += mask<<16;
+  x = ((x>>4)&mask) + (x&mask);
+  /* Generate 0xFFFFFFFF */
+  mask = 0xFF;
+  mask += mask<<16;
+  x = ((x>>8)&mask) + (x&mask);
+  x += x>>16;
+  return x&0xFF;
 }
 /* 
  * bang - Compute !x without using !
@@ -227,7 +242,7 @@ int fitsBits(int x, int n) {
  */
 int divpwr2(int x, int n) {
 	int bias = (x>>31)&~(((0x1<<31)>>31)<<n);
-  return (x+bias)>>n;
+  	return (x+bias)>>n;
 }
 /* 
  * negate - return -x 
@@ -271,7 +286,34 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4
  */
 int ilog2(int x) {
-  return 2;
+  /* Pass the most significant to low bits */
+  int ans = 0, mask = 0;
+  x |= x>>1;
+  x |= x>>2;
+  x |= x>>4;
+  x |= x>>8;
+  x |= x>>16;
+  /* Generate 0x55555555 */
+  mask = 0x55;
+  mask += mask<<8;
+  mask += mask<<16;
+  x = ((x>>1)&mask) + (x&mask);
+  /* Generate 0x33333333 */
+  mask = 0x33;
+  mask += mask<<8;
+  mask += mask<<16;
+  x = ((x>>2)&mask) + (x&mask);
+  /* Generate 0x0F0F0F0F */
+  mask = 0x0F;
+  mask += mask<<8;
+  mask += mask<<16;
+  x = ((x>>4)&mask) + (x&mask);
+  /* Generate 0xFFFFFFFF */
+  mask = 0xFF;
+  mask += mask<<16;
+  x = ((x>>8)&mask) + (x&mask);
+  x += x>>16;
+  return (x&0xFF)+(~0x1+0x1);
 }
 /* 
  * float_neg - Return bit-level equivalent of expression -f for
@@ -300,7 +342,8 @@ unsigned float_neg(unsigned uf) {
  *   Rating: 4
  */
 unsigned float_i2f(int x) {
-  return 2;
+	int sgn = x&0x80000000;
+	return sgn;
 }
 /* 
  * float_twice - Return bit-level equivalent of expression 2*f for
