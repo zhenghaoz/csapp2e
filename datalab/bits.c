@@ -200,7 +200,7 @@ int bitCount(int x) {
  *   Max ops: 12
  *   Rating: 4 
  */
-int bang(int x) {
+int bang(int x) {  
   x = ~x;
   x = (x>>16)&x;
   x = (x>>8)&x;
@@ -287,7 +287,7 @@ int isLessOrEqual(int x, int y) {
  */
 int ilog2(int x) {
   /* Pass the most significant to low bits */
-  int ans = 0, mask = 0;
+  int mask = 0;
   x |= x>>1;
   x |= x>>2;
   x |= x>>4;
@@ -329,8 +329,7 @@ int ilog2(int x) {
 unsigned float_neg(unsigned uf) {
 	if (uf<<1 > 0xFF000000) 
 		return uf;
-	else
-		return uf + 0x80000000;
+	return uf + 0x80000000;
 }
 /* 
  * float_i2f - Return bit-level equivalent of expression (float) x
@@ -342,8 +341,55 @@ unsigned float_neg(unsigned uf) {
  *   Rating: 4
  */
 unsigned float_i2f(int x) {
-	int sgn = x&0x80000000;
-	return sgn;
+	// Variable declares
+	int f, mask, abs_var, rounded_abs_var, temp, fraction, log2_var, dismissed_bits, last_bit, round_up;
+
+	// If x == 0
+	if (!x)
+		return 0;
+	// If x == tmin
+	if (x == 0x80000000)
+		return 0xcf000000;
+
+	// If x != 0 && x != tmin
+	// Get abs
+	if (x > 0) {
+		f = 0x3F800000;
+		abs_var = x;
+	} else {
+		f = 0xBF800000;
+		abs_var = -x;
+	}
+	if (abs_var >= 0x7FFFFFC0)
+		return 0xcf000000;
+	// Get exponent
+	mask = 0x40000000;
+	log2_var = 30;
+	while (!(abs_var & mask)) {
+		log2_var--;
+		mask >>= 1;
+	}
+	f += log2_var << 23;
+	// Get fraction
+	dismissed_bits = log2_var - 23;
+	if (dismissed_bits > 0) { 
+		// Round
+		mask = ~(0xFFFFFFFF << dismissed_bits);
+		temp = abs_var & mask;
+		rounded_abs_var = abs_var >>= dismissed_bits;
+		last_bit = 0x1<<(dismissed_bits-1);
+		round_up = 0;
+		if (temp > last_bit)
+			round_up = 1;
+		else if (temp == last_bit)
+			if (abs_var & 0x1)
+				round_up = 1;
+		rounded_abs_var += round_up;
+		if (rounded_abs_var / abs_var > 1)
+			f += 0x800000;
+	} else 
+		rounded_abs_var = abs_var <<= -dismissed_bits;
+	return f | (rounded_abs_var & 0x7FFFFF);
 }
 /* 
  * float_twice - Return bit-level equivalent of expression 2*f for
@@ -357,5 +403,29 @@ unsigned float_i2f(int x) {
  *   Rating: 4
  */
 unsigned float_twice(unsigned uf) {
-  return 2;
+  unsigned fraction = uf & 0x7FFFFF;
+  unsigned exponet = uf & 0x7F800000;
+  // Infinity or NaN
+  if (exponet == 0x7F800000) 
+  	return uf;
+  // Denormal
+  else if (!exponet) {
+  	fraction <<= 1;
+  	fraction &= 0x7FFFFF;
+  	// Bordery case
+  	if (fraction & 0x400000) 
+  	  exponet = 0x800000;
+  }
+  // Normal
+  else {
+  	// If result is infnity
+  	if (exponet + 0x800000 == 0x7F800000)
+  		fraction = 0;
+  	exponet += 0x800000;
+  }
+  // Combine
+  uf &= 0x80000000;
+  uf |= exponet;
+  uf |= fraction;
+  return uf;
 }
