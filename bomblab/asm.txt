@@ -270,13 +270,13 @@ Disassembly of section .text:
 080489b0 <main>:
  80489b0:	55                   	push   %ebp
  80489b1:	89 e5                	mov    %esp,%ebp
- 80489b3:	83 ec 14             	sub    $0x14,%esp			# Allocate memory
+ 80489b3:	83 ec 14             	sub    $0x14,%esp			
  80489b6:	53                   	push   %ebx
- 80489b7:	8b 45 08             	mov    0x8(%ebp),%eax		# Get argc
- 80489ba:	8b 5d 0c             	mov    0xc(%ebp),%ebx 		# Get argv
- 80489bd:	83 f8 01             	cmp    $0x1,%eax			# Compare argc with 1
- 80489c0:	75 0e                	jne    80489d0 <main+0x20>	# If argc!=1 , goto 80489d0
- 80489c2:	a1 48 b6 04 08       	mov    0x804b648,%eax		# Move 0xf7fbcc20 to eax
+ 80489b7:	8b 45 08             	mov    0x8(%ebp),%eax		
+ 80489ba:	8b 5d 0c             	mov    0xc(%ebp),%ebx 		
+ 80489bd:	83 f8 01             	cmp    $0x1,%eax			
+ 80489c0:	75 0e                	jne    80489d0 <main+0x20>	
+ 80489c2:	a1 48 b6 04 08       	mov    0x804b648,%eax	
  80489c7:	a3 64 b6 04 08       	mov    %eax,0x804b664
  80489cc:	eb 62                	jmp    8048a30 <main+0x80>
  80489ce:	89 f6                	mov    %esi,%esi
@@ -385,10 +385,10 @@ Disassembly of section .text:
  8048b29:	83 c4 f8             	add    $0xfffffff8,%esp
  8048b2c:	68 c0 97 04 08       	push   $0x80497c0					# Pass argument (answer string)
  8048b31:	50                   	push   %eax							# Pass argument (input string)
- 8048b32:	e8 f9 04 00 00       	call   8049030 <strings_not_equal>	# Call 
+ 8048b32:	e8 f9 04 00 00       	call   8049030 <strings_not_equal>	# Call string_not_equal
  8048b37:	83 c4 10             	add    $0x10,%esp
- 8048b3a:	85 c0                	test   %eax,%eax
- 8048b3c:	74 05                	je     8048b43 <phase_1+0x23>
+ 8048b3a:	85 c0                	test   %eax,%eax					# Test %eax
+ 8048b3c:	74 05                	je     8048b43 <phase_1+0x23>		# If string_not_equal return 0, go to phase_2
  8048b3e:	e8 b9 09 00 00       	call   80494fc <explode_bomb>		# Call explode function
  8048b43:	89 ec                	mov    %ebp,%esp
  8048b45:	5d                   	pop    %ebp
