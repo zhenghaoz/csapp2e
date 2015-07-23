@@ -432,74 +432,74 @@ Disassembly of section .text:
 08048b98 <phase_3>:
  8048b98:	55                   	push   %ebp
  8048b99:	89 e5                	mov    %esp,%ebp
- 8048b9b:	83 ec 14             	sub    $0x14,%esp
+ 8048b9b:	83 ec 14             	sub    $0x14,%esp	
  8048b9e:	53                   	push   %ebx
- 8048b9f:	8b 55 08             	mov    0x8(%ebp),%edx
+ 8048b9f:	8b 55 08             	mov    0x8(%ebp),%edx 			# Get input string
  8048ba2:	83 c4 f4             	add    $0xfffffff4,%esp
  8048ba5:	8d 45 fc             	lea    -0x4(%ebp),%eax
- 8048ba8:	50                   	push   %eax
+ 8048ba8:	50                   	push   %eax						# Pass int* b
  8048ba9:	8d 45 fb             	lea    -0x5(%ebp),%eax
- 8048bac:	50                   	push   %eax
+ 8048bac:	50                   	push   %eax						# Pass char* c
  8048bad:	8d 45 f4             	lea    -0xc(%ebp),%eax
- 8048bb0:	50                   	push   %eax
- 8048bb1:	68 de 97 04 08       	push   $0x80497de
- 8048bb6:	52                   	push   %edx
+ 8048bb0:	50                   	push   %eax						# Pass int* a
+ 8048bb1:	68 de 97 04 08       	push   $0x80497de				# Pass "%d %c %d"
+ 8048bb6:	52                   	push   %edx 					# Pass input string
  8048bb7:	e8 a4 fc ff ff       	call   8048860 <sscanf@plt>
  8048bbc:	83 c4 20             	add    $0x20,%esp
- 8048bbf:	83 f8 02             	cmp    $0x2,%eax
- 8048bc2:	7f 05                	jg     8048bc9 <phase_3+0x31>
+ 8048bbf:	83 f8 02             	cmp    $0x2,%eax 				# Compare result with 2
+ 8048bc2:	7f 05                	jg     8048bc9 <phase_3+0x31>	# If result > 2,goto 8048c88
  8048bc4:	e8 33 09 00 00       	call   80494fc <explode_bomb>
- 8048bc9:	83 7d f4 07          	cmpl   $0x7,-0xc(%ebp)
- 8048bcd:	0f 87 b5 00 00 00    	ja     8048c88 <phase_3+0xf0>
- 8048bd3:	8b 45 f4             	mov    -0xc(%ebp),%eax
- 8048bd6:	ff 24 85 e8 97 04 08 	jmp    *0x80497e8(,%eax,4)
+ 8048bc9:	83 7d f4 07          	cmpl   $0x7,-0xc(%ebp)			# Compare a with 0x7 
+ 8048bcd:	0f 87 b5 00 00 00    	ja     8048c88 <phase_3+0xf0>	# If a > 7, go to 8048bd3
+ 8048bd3:	8b 45 f4             	mov    -0xc(%ebp),%eax			# %eax = a
+ 8048bd6:	ff 24 85 e8 97 04 08 	jmp    *0x80497e8(,%eax,4)		# Switch a
  8048bdd:	8d 76 00             	lea    0x0(%esi),%esi
- 8048be0:	b3 71                	mov    $0x71,%bl
+ 8048be0:	b3 71                	mov    $0x71,%bl 				# Case 0: 
  8048be2:	81 7d fc 09 03 00 00 	cmpl   $0x309,-0x4(%ebp)
  8048be9:	0f 84 a0 00 00 00    	je     8048c8f <phase_3+0xf7>
  8048bef:	e8 08 09 00 00       	call   80494fc <explode_bomb>
  8048bf4:	e9 96 00 00 00       	jmp    8048c8f <phase_3+0xf7>
  8048bf9:	8d b4 26 00 00 00 00 	lea    0x0(%esi,%eiz,1),%esi
- 8048c00:	b3 62                	mov    $0x62,%bl
- 8048c02:	81 7d fc d6 00 00 00 	cmpl   $0xd6,-0x4(%ebp)
- 8048c09:	0f 84 80 00 00 00    	je     8048c8f <phase_3+0xf7>
+ 8048c00:	b3 62                	mov    $0x62,%bl 				# Case 1: %bl = b
+ 8048c02:	81 7d fc d6 00 00 00 	cmpl   $0xd6,-0x4(%ebp)			# Compare b with 214
+ 8048c09:	0f 84 80 00 00 00    	je     8048c8f <phase_3+0xf7>	# If b == 214,go to 8048c8f
  8048c0f:	e8 e8 08 00 00       	call   80494fc <explode_bomb>
  8048c14:	eb 79                	jmp    8048c8f <phase_3+0xf7>
- 8048c16:	b3 62                	mov    $0x62,%bl
- 8048c18:	81 7d fc f3 02 00 00 	cmpl   $0x2f3,-0x4(%ebp)
+ 8048c16:	b3 62                	mov    $0x62,%bl 				# Case 2: 
+ 8048c18:	81 7d fc f3 02 00 00 	cmpl   $0x2f3,-0x4(%ebp)		
  8048c1f:	74 6e                	je     8048c8f <phase_3+0xf7>
  8048c21:	e8 d6 08 00 00       	call   80494fc <explode_bomb>
  8048c26:	eb 67                	jmp    8048c8f <phase_3+0xf7>
- 8048c28:	b3 6b                	mov    $0x6b,%bl
+ 8048c28:	b3 6b                	mov    $0x6b,%bl 				# Case 3: 
  8048c2a:	81 7d fc fb 00 00 00 	cmpl   $0xfb,-0x4(%ebp)
  8048c31:	74 5c                	je     8048c8f <phase_3+0xf7>
  8048c33:	e8 c4 08 00 00       	call   80494fc <explode_bomb>
  8048c38:	eb 55                	jmp    8048c8f <phase_3+0xf7>
  8048c3a:	8d b6 00 00 00 00    	lea    0x0(%esi),%esi
- 8048c40:	b3 6f                	mov    $0x6f,%bl
+ 8048c40:	b3 6f                	mov    $0x6f,%bl 				# Case 4: 
  8048c42:	81 7d fc a0 00 00 00 	cmpl   $0xa0,-0x4(%ebp)
  8048c49:	74 44                	je     8048c8f <phase_3+0xf7>
  8048c4b:	e8 ac 08 00 00       	call   80494fc <explode_bomb>
  8048c50:	eb 3d                	jmp    8048c8f <phase_3+0xf7>
- 8048c52:	b3 74                	mov    $0x74,%bl
+ 8048c52:	b3 74                	mov    $0x74,%bl 				# Case 5: 
  8048c54:	81 7d fc ca 01 00 00 	cmpl   $0x1ca,-0x4(%ebp)
  8048c5b:	74 32                	je     8048c8f <phase_3+0xf7>
  8048c5d:	e8 9a 08 00 00       	call   80494fc <explode_bomb>
  8048c62:	eb 2b                	jmp    8048c8f <phase_3+0xf7>
- 8048c64:	b3 76                	mov    $0x76,%bl
+ 8048c64:	b3 76                	mov    $0x76,%bl 				# Case 6:
  8048c66:	81 7d fc 0c 03 00 00 	cmpl   $0x30c,-0x4(%ebp)
  8048c6d:	74 20                	je     8048c8f <phase_3+0xf7>
  8048c6f:	e8 88 08 00 00       	call   80494fc <explode_bomb>
  8048c74:	eb 19                	jmp    8048c8f <phase_3+0xf7>
- 8048c76:	b3 62                	mov    $0x62,%bl
+ 8048c76:	b3 62                	mov    $0x62,%bl 				# Case 7: 
  8048c78:	81 7d fc 0c 02 00 00 	cmpl   $0x20c,-0x4(%ebp)
  8048c7f:	74 0e                	je     8048c8f <phase_3+0xf7>
  8048c81:	e8 76 08 00 00       	call   80494fc <explode_bomb>
  8048c86:	eb 07                	jmp    8048c8f <phase_3+0xf7>
- 8048c88:	b3 78                	mov    $0x78,%bl
+ 8048c88:	b3 78                	mov    $0x78,%bl 				# Defualt: 
  8048c8a:	e8 6d 08 00 00       	call   80494fc <explode_bomb>
- 8048c8f:	3a 5d fb             	cmp    -0x5(%ebp),%bl
- 8048c92:	74 05                	je     8048c99 <phase_3+0x101>
+ 8048c8f:	3a 5d fb             	cmp    -0x5(%ebp),%bl 			# Compare c with %bl
+ 8048c92:	74 05                	je     8048c99 <phase_3+0x101>	# If c == %bl,go to 8048c99
  8048c94:	e8 63 08 00 00       	call   80494fc <explode_bomb>
  8048c99:	8b 5d e8             	mov    -0x18(%ebp),%ebx
  8048c9c:	89 ec                	mov    %ebp,%esp
