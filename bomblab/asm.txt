@@ -512,20 +512,20 @@ Disassembly of section .text:
  8048ca3:	83 ec 10             	sub    $0x10,%esp
  8048ca6:	56                   	push   %esi
  8048ca7:	53                   	push   %ebx
- 8048ca8:	8b 5d 08             	mov    0x8(%ebp),%ebx
- 8048cab:	83 fb 01             	cmp    $0x1,%ebx
- 8048cae:	7e 20                	jle    8048cd0 <func4+0x30>
+ 8048ca8:	8b 5d 08             	mov    0x8(%ebp),%ebx 		# Get a
+ 8048cab:	83 fb 01             	cmp    $0x1,%ebx 			# Compare a with 1
+ 8048cae:	7e 20                	jle    8048cd0 <func4+0x30>	# If a <= 1,go to 8048cd0
  8048cb0:	83 c4 f4             	add    $0xfffffff4,%esp
- 8048cb3:	8d 43 ff             	lea    -0x1(%ebx),%eax
- 8048cb6:	50                   	push   %eax
- 8048cb7:	e8 e4 ff ff ff       	call   8048ca0 <func4>
+ 8048cb3:	8d 43 ff             	lea    -0x1(%ebx),%eax		# a-1
+ 8048cb6:	50                   	push   %eax					# Pass a-1
+ 8048cb7:	e8 e4 ff ff ff       	call   8048ca0 <func4>		# Call fun4
  8048cbc:	89 c6                	mov    %eax,%esi
  8048cbe:	83 c4 f4             	add    $0xfffffff4,%esp
- 8048cc1:	8d 43 fe             	lea    -0x2(%ebx),%eax
- 8048cc4:	50                   	push   %eax
- 8048cc5:	e8 d6 ff ff ff       	call   8048ca0 <func4>
+ 8048cc1:	8d 43 fe             	lea    -0x2(%ebx),%eax		# a-2
+ 8048cc4:	50                   	push   %eax					# Pass a-2
+ 8048cc5:	e8 d6 ff ff ff       	call   8048ca0 <func4>		# Call fun4
  8048cca:	01 f0                	add    %esi,%eax
- 8048ccc:	eb 07                	jmp    8048cd5 <func4+0x35>
+ 8048ccc:	eb 07                	jmp    8048cd5 <func4+0x35>	# Call fun4,go to 8048cd5
  8048cce:	89 f6                	mov    %esi,%esi
  8048cd0:	b8 01 00 00 00       	mov    $0x1,%eax
  8048cd5:	8d 65 e8             	lea    -0x18(%ebp),%esp
@@ -540,26 +540,26 @@ Disassembly of section .text:
  8048ce0:	55                   	push   %ebp
  8048ce1:	89 e5                	mov    %esp,%ebp
  8048ce3:	83 ec 18             	sub    $0x18,%esp
- 8048ce6:	8b 55 08             	mov    0x8(%ebp),%edx
+ 8048ce6:	8b 55 08             	mov    0x8(%ebp),%edx 			# Get input string
  8048ce9:	83 c4 fc             	add    $0xfffffffc,%esp
  8048cec:	8d 45 fc             	lea    -0x4(%ebp),%eax
- 8048cef:	50                   	push   %eax
- 8048cf0:	68 08 98 04 08       	push   $0x8049808
- 8048cf5:	52                   	push   %edx
+ 8048cef:	50                   	push   %eax						# Pass int* a
+ 8048cf0:	68 08 98 04 08       	push   $0x8049808				# Pass "%d"
+ 8048cf5:	52                   	push   %edx 					# Pass input string
  8048cf6:	e8 65 fb ff ff       	call   8048860 <sscanf@plt>
- 8048cfb:	83 c4 10             	add    $0x10,%esp
- 8048cfe:	83 f8 01             	cmp    $0x1,%eax
- 8048d01:	75 06                	jne    8048d09 <phase_4+0x29>
- 8048d03:	83 7d fc 00          	cmpl   $0x0,-0x4(%ebp)
- 8048d07:	7f 05                	jg     8048d0e <phase_4+0x2e>
+ 8048cfb:	83 c4 10             	add    $0x10,%esp				
+ 8048cfe:	83 f8 01             	cmp    $0x1,%eax				# Compare result with 1
+ 8048d01:	75 06                	jne    8048d09 <phase_4+0x29>	# if result != 0,go to 8048d09
+ 8048d03:	83 7d fc 00          	cmpl   $0x0,-0x4(%ebp)			# Compare a with 0
+ 8048d07:	7f 05                	jg     8048d0e <phase_4+0x2e>	# If a > 0,go to 8048d0e
  8048d09:	e8 ee 07 00 00       	call   80494fc <explode_bomb>
  8048d0e:	83 c4 f4             	add    $0xfffffff4,%esp
- 8048d11:	8b 45 fc             	mov    -0x4(%ebp),%eax
- 8048d14:	50                   	push   %eax
- 8048d15:	e8 86 ff ff ff       	call   8048ca0 <func4>
+ 8048d11:	8b 45 fc             	mov    -0x4(%ebp),%eax			
+ 8048d14:	50                   	push   %eax						# Pass a
+ 8048d15:	e8 86 ff ff ff       	call   8048ca0 <func4>			# Call func4
  8048d1a:	83 c4 10             	add    $0x10,%esp
- 8048d1d:	83 f8 37             	cmp    $0x37,%eax
- 8048d20:	74 05                	je     8048d27 <phase_4+0x47>
+ 8048d1d:	83 f8 37             	cmp    $0x37,%eax				# Compare result with 55
+ 8048d20:	74 05                	je     8048d27 <phase_4+0x47>	# if result == 35,go to 8048d27
  8048d22:	e8 d5 07 00 00       	call   80494fc <explode_bomb>
  8048d27:	89 ec                	mov    %ebp,%esp
  8048d29:	5d                   	pop    %ebp
@@ -572,15 +572,15 @@ Disassembly of section .text:
  8048d2f:	83 ec 10             	sub    $0x10,%esp
  8048d32:	56                   	push   %esi
  8048d33:	53                   	push   %ebx
- 8048d34:	8b 5d 08             	mov    0x8(%ebp),%ebx
+ 8048d34:	8b 5d 08             	mov    0x8(%ebp),%ebx 			# Get input string
  8048d37:	83 c4 f4             	add    $0xfffffff4,%esp
- 8048d3a:	53                   	push   %ebx
+ 8048d3a:	53                   	push   %ebx 					# Pass input string
  8048d3b:	e8 d8 02 00 00       	call   8049018 <string_length>
  8048d40:	83 c4 10             	add    $0x10,%esp
- 8048d43:	83 f8 06             	cmp    $0x6,%eax
- 8048d46:	74 05                	je     8048d4d <phase_5+0x21>
+ 8048d43:	83 f8 06             	cmp    $0x6,%eax				# Compare string length with 6
+ 8048d46:	74 05                	je     8048d4d <phase_5+0x21>	# If length == 6,go to 8048d4d
  8048d48:	e8 af 07 00 00       	call   80494fc <explode_bomb>
- 8048d4d:	31 d2                	xor    %edx,%edx
+ 8048d4d:	31 d2                	xor    %edx,%edx 				# %edx = 0
  8048d4f:	8d 4d f8             	lea    -0x8(%ebp),%ecx
  8048d52:	be 20 b2 04 08       	mov    $0x804b220,%esi
  8048d57:	8a 04 1a             	mov    (%edx,%ebx,1),%al
@@ -616,12 +616,12 @@ Disassembly of section .text:
  8048d9e:	57                   	push   %edi
  8048d9f:	56                   	push   %esi
  8048da0:	53                   	push   %ebx
- 8048da1:	8b 55 08             	mov    0x8(%ebp),%edx
+ 8048da1:	8b 55 08             	mov    0x8(%ebp),%edx 				# Get input string
  8048da4:	c7 45 cc 6c b2 04 08 	movl   $0x804b26c,-0x34(%ebp)
  8048dab:	83 c4 f8             	add    $0xfffffff8,%esp
  8048dae:	8d 45 e8             	lea    -0x18(%ebp),%eax
  8048db1:	50                   	push   %eax
- 8048db2:	52                   	push   %edx
+ 8048db2:	52                   	push   %edx 						# Pass input string
  8048db3:	e8 20 02 00 00       	call   8048fd8 <read_six_numbers>
  8048db8:	31 ff                	xor    %edi,%edi
  8048dba:	83 c4 10             	add    $0x10,%esp
