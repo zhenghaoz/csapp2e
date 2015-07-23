@@ -581,25 +581,25 @@ Disassembly of section .text:
  8048d46:	74 05                	je     8048d4d <phase_5+0x21>	# If length == 6,go to 8048d4d
  8048d48:	e8 af 07 00 00       	call   80494fc <explode_bomb>
  8048d4d:	31 d2                	xor    %edx,%edx 				# %edx = 0
- 8048d4f:	8d 4d f8             	lea    -0x8(%ebp),%ecx
- 8048d52:	be 20 b2 04 08       	mov    $0x804b220,%esi
- 8048d57:	8a 04 1a             	mov    (%edx,%ebx,1),%al
- 8048d5a:	24 0f                	and    $0xf,%al
- 8048d5c:	0f be c0             	movsbl %al,%eax
- 8048d5f:	8a 04 30             	mov    (%eax,%esi,1),%al
- 8048d62:	88 04 0a             	mov    %al,(%edx,%ecx,1)
- 8048d65:	42                   	inc    %edx
- 8048d66:	83 fa 05             	cmp    $0x5,%edx
- 8048d69:	7e ec                	jle    8048d57 <phase_5+0x2b>
+ 8048d4f:	8d 4d f8             	lea    -0x8(%ebp),%ecx			# Allocate memory for new_string 
+ 8048d52:	be 20 b2 04 08       	mov    $0x804b220,%esi			# dic_string = "isrveawhobpnutfg\260\001"
+ 8048d57:	8a 04 1a             	mov    (%edx,%ebx,1),%al 		# %al = input_string[0]
+ 8048d5a:	24 0f                	and    $0xf,%al 				# %al = input_string[0] & 0xf
+ 8048d5c:	0f be c0             	movsbl %al,%eax 				# %eax = input_string[0] & 0xf
+ 8048d5f:	8a 04 30             	mov    (%eax,%esi,1),%al 		# %al = dic_string[%eax]
+ 8048d62:	88 04 0a             	mov    %al,(%edx,%ecx,1)		# new_string[%edx] = %al
+ 8048d65:	42                   	inc    %edx 					# %edx++
+ 8048d66:	83 fa 05             	cmp    $0x5,%edx 				# Compare 0x5 with %edx
+ 8048d69:	7e ec                	jle    8048d57 <phase_5+0x2b> 	# If %edx <= 5,go to 8048d57
  8048d6b:	c6 45 fe 00          	movb   $0x0,-0x2(%ebp)
  8048d6f:	83 c4 f8             	add    $0xfffffff8,%esp
- 8048d72:	68 0b 98 04 08       	push   $0x804980b
+ 8048d72:	68 0b 98 04 08       	push   $0x804980b				# Pass "giants"
  8048d77:	8d 45 f8             	lea    -0x8(%ebp),%eax
- 8048d7a:	50                   	push   %eax
+ 8048d7a:	50                   	push   %eax						# Pass new string
  8048d7b:	e8 b0 02 00 00       	call   8049030 <strings_not_equal>
  8048d80:	83 c4 10             	add    $0x10,%esp
- 8048d83:	85 c0                	test   %eax,%eax
- 8048d85:	74 05                	je     8048d8c <phase_5+0x60>
+ 8048d83:	85 c0                	test   %eax,%eax				# Compare result with 0
+ 8048d85:	74 05                	je     8048d8c <phase_5+0x60>	# If result == 0,go to 8048d8c
  8048d87:	e8 70 07 00 00       	call   80494fc <explode_bomb>
  8048d8c:	8d 65 e8             	lea    -0x18(%ebp),%esp
  8048d8f:	5b                   	pop    %ebx
