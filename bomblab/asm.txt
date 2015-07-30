@@ -654,7 +654,7 @@ Disassembly of section .text:
  8048e07:	8d 45 d0             	lea    -0x30(%ebp),%eax				# int m[6]
  8048e0a:	89 45 c4             	mov    %eax,-0x3c(%ebp)				# Save int* m
  8048e0d:	8d 76 00             	lea    0x0(%esi),%esi				# NOP
- 8048e10:	8b 75 cc             	mov    -0x34(%ebp),%esi				# int* n
+ 8048e10:	8b 75 cc             	mov    -0x34(%ebp),%esi				# int* n   
  8048e13:	bb 01 00 00 00       	mov    $0x1,%ebx 					# %ebx = 1
  8048e18:	8d 04 bd 00 00 00 00 	lea    0x0(,%edi,4),%eax			# %eax 4*%edi
  8048e1f:	89 c2                	mov    %eax,%edx 					# %edx = 4*%edi
@@ -662,7 +662,7 @@ Disassembly of section .text:
  8048e24:	7d 12                	jge    8048e38 <phase_6+0xa0>		# If %ebx >= a[%edi],go to 8048e38
  8048e26:	8b 04 0a             	mov    (%edx,%ecx,1),%eax			# %eax = a[%edi]
  8048e29:	8d b4 26 00 00 00 00 	lea    0x0(%esi,%eiz,1),%esi		# NOP
- 8048e30:	8b 76 08             	mov    0x8(%esi),%esi				# n += 2
+ 8048e30:	8b 76 08             	mov    0x8(%esi),%esi				# %esi = %esi[2]		
  8048e33:	43                   	inc    %ebx 						# %ebx++
  8048e34:	39 c3                	cmp    %eax,%ebx 					# Compare %ebx with %eax
  8048e36:	7c f8                	jl     8048e30 <phase_6+0x98> 		# If %ebx < %eax,go to 8048e30
@@ -671,24 +671,24 @@ Disassembly of section .text:
  8048e3e:	47                   	inc    %edi							# %edi++
  8048e3f:	83 ff 05             	cmp    $0x5,%edi					# Compare %edi with 0x5
  8048e42:	7e cc                	jle    8048e10 <phase_6+0x78>		# If %edi <= 0x5,go to 8048e10
- 8048e44:	8b 75 d0             	mov    -0x30(%ebp),%esi				#
+ 8048e44:	8b 75 d0             	mov    -0x30(%ebp),%esi				# Get array m
  8048e47:	89 75 cc             	mov    %esi,-0x34(%ebp)				#
  8048e4a:	bf 01 00 00 00       	mov    $0x1,%edi					# %edi = 1
- 8048e4f:	8d 55 d0             	lea    -0x30(%ebp),%edx 			#
- 8048e52:	8b 04 ba             	mov    (%edx,%edi,4),%eax			#
- 8048e55:	89 46 08             	mov    %eax,0x8(%esi)				#
- 8048e58:	89 c6                	mov    %eax,%esi					#
+ 8048e4f:	8d 55 d0             	lea    -0x30(%ebp),%edx 			# Get array m
+ 8048e52:	8b 04 ba             	mov    (%edx,%edi,4),%eax			# Get a[%edi]
+ 8048e55:	89 46 08             	mov    %eax,0x8(%esi)				# a[2] = a[%edi]
+ 8048e58:	89 c6                	mov    %eax,%esi					# a = a[%edi]
  8048e5a:	47                   	inc    %edi							# %edi++
  8048e5b:	83 ff 05             	cmp    $0x5,%edi					# Compare %edi with 0x5
  8048e5e:	7e f2                	jle    8048e52 <phase_6+0xba>		# If %edi <= 0x5,go to 8048e52
  8048e60:	c7 46 08 00 00 00 00 	movl   $0x0,0x8(%esi)				#
  8048e67:	8b 75 cc             	mov    -0x34(%ebp),%esi				#
  8048e6a:	31 ff                	xor    %edi,%edi					# %edi = 0
- 8048e6c:	8d 74 26 00          	lea    0x0(%esi,%eiz,1),%esi		#
+ 8048e6c:	8d 74 26 00          	lea    0x0(%esi,%eiz,1),%esi		# NOP
  8048e70:	8b 56 08             	mov    0x8(%esi),%edx 				#
  8048e73:	8b 06                	mov    (%esi),%eax					# 
- 8048e75:	3b 02                	cmp    (%edx),%eax					#
- 8048e77:	7d 05                	jge    8048e7e <phase_6+0xe6>		#
+ 8048e75:	3b 02                	cmp    (%edx),%eax					# 
+ 8048e77:	7d 05                	jge    8048e7e <phase_6+0xe6>		# If %eax >= (%edx)
  8048e79:	e8 7e 06 00 00       	call   80494fc <explode_bomb>
  8048e7e:	8b 76 08             	mov    0x8(%esi),%esi				#
  8048e81:	47                   	inc    %edi							# %edi++
