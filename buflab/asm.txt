@@ -398,7 +398,7 @@ Disassembly of section .text:
  8048c9d:	55                   	push   %ebp
  8048c9e:	89 e5                	mov    %esp,%ebp
  8048ca0:	83 ec 18             	sub    $0x18,%esp
- 8048ca3:	a1 00 d1 04 08       	mov    0x804d100,%eax
+ 8048ca3:	a1 00 d1 04 08       	mov    0x804d100,%eax		# Get global_value
  8048ca8:	3b 05 08 d1 04 08    	cmp    0x804d108,%eax
  8048cae:	75 26                	jne    8048cd6 <bang+0x39>
  8048cb0:	89 44 24 08          	mov    %eax,0x8(%esp)
