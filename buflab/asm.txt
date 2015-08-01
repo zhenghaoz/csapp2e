@@ -485,7 +485,7 @@ Disassembly of section .text:
  8048db1:	e8 da ff ff ff       	call   8048d90 <uniqueval>
  8048db6:	89 45 f4             	mov    %eax,-0xc(%ebp)
  8048db9:	e8 36 04 00 00       	call   80491f4 <getbuf>
- 8048dbe:	89 c3                	mov    %eax,%ebx
+ 8048dbe:	89 c3                	mov    %eax,%ebx			# Get return value
  8048dc0:	e8 cb ff ff ff       	call   8048d90 <uniqueval>
  8048dc5:	8b 55 f4             	mov    -0xc(%ebp),%edx
  8048dc8:	39 d0                	cmp    %edx,%eax
@@ -783,7 +783,7 @@ Disassembly of section .text:
  80491fa:	8d 45 d8             	lea    -0x28(%ebp),%eax
  80491fd:	89 04 24             	mov    %eax,(%esp)
  8049200:	e8 f5 fa ff ff       	call   8048cfa <Gets>
- 8049205:	b8 01 00 00 00       	mov    $0x1,%eax
+ 8049205:	b8 01 00 00 00       	mov    $0x1,%eax		# Return 1
  804920a:	c9                   	leave  
  804920b:	c3                   	ret    
 
