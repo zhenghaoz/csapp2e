@@ -165,10 +165,31 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
-	char *args[MAXARGS];
-	int fg = parseline(cmdline, args);
-	if (!builtin_cmd(args)) {
-		
+	char *argv[MAXARGS];	/* Arguement list execve */
+	int bg;					/* Should the job run in bg or fg */
+	pid_t pid;				/* Process id */
+
+	bg = parseline(cmdline, argv);
+
+	/* Ignore empty line */
+	if (argv[0] == NULL)
+		return;
+
+	if (!builtin_cmd(argv)) {
+		/* Child runs user job */
+		if ((pid = fork()) == 0) {
+			if (execve(argv[0], argv, environ) < 0) {
+				printf("%s: Command not found.\n", argv[0]);
+				exit(0);
+			}
+		}
+		if (!bg) {
+			addjob(jobs, pid, FG, cmdline);
+			waitfg(pid);
+		} else {
+			printf("[%d] (%d) %s", nextjid, pid, cmdline);
+			addjob(jobs, pid, BG, cmdline);
+		}
 	}
     return;
 }
@@ -239,6 +260,7 @@ int builtin_cmd(char **argv)
 	if (!strcmp(argv[0], "quit"))
 		exit(0);
 	else if (!strcmp(argv[0], "jobs")) {
+		listjobs(jobs);
 		return 1;
 	} else if (!strcmp(argv[0], "fg")) {
 		return 1;
@@ -261,7 +283,9 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    return;
+	int status;		
+	if (waitpid(pid, &status, 0) < 0) 
+		unix_error("waitfg: waitpid error");
 }
 
 /*****************
@@ -277,6 +301,9 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+	pid_t pid;
+	if ((pid = waitpid(-1, NULL, 0)) > 0)
+		deletejob(jobs, pid);
     return;
 }
 
@@ -287,6 +314,10 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+	pid_t pid;	
+	if ((pid = fgpid(jobs))) {
+		printf("Job [%d] (%d) terminated by signal 2\n", getjobpid(jobs, pid)->jid, pid);
+	}
     return;
 }
 
@@ -296,7 +327,10 @@ void sigint_handler(int sig)
  *     foreground job by sending it a SIGTSTP.  
  */
 void sigtstp_handler(int sig) 
-{
+{	
+	pid_t pid;	
+	if ((pid = fgpid(jobs))) 
+		printf("Job [%d] (%d) stopped by signal 20\n", getjobpid(jobs, pid)->jid, pid);
     return;
 }
 
