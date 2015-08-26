@@ -168,6 +168,7 @@ void eval(char *cmdline)
 	char *argv[MAXARGS];	/* Arguement list execve */
 	int bg;					/* Should the job run in bg or fg */
 	pid_t pid;				/* Process id */
+	sigset_t mask;			
 
 	bg = parseline(cmdline, argv);
 
@@ -175,7 +176,13 @@ void eval(char *cmdline)
 	if (argv[0] == NULL)
 		return;
 
-	if (!builtin_cmd(argv)) {
+	if (!builtin_cmd(argv)) { 
+
+		/* Block SIGCHLD */
+		sigemptyset(&mask);
+		sigaddset(&mask, SIGCHLD);
+		sigprocmask(SIG_BLOCK, &mask, NULL);
+
 		/* Child runs user job */
 		if ((pid = fork()) == 0) {
 			if (execve(argv[0], argv, environ) < 0) {
@@ -190,6 +197,9 @@ void eval(char *cmdline)
 			printf("[%d] (%d) %s", nextjid, pid, cmdline);
 			addjob(jobs, pid, BG, cmdline);
 		}
+
+		/* Unlock SIGCHLD */
+		sigprocmask(SIG_UNBLOCK, &mask, NULL);
 	}
     return;
 }
@@ -283,9 +293,11 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-	int status;		
+	int status;
 	if (waitpid(pid, &status, 0) < 0) 
-		unix_error("waitfg: waitpid error");
+		printf("waitfg: waitpid error\n");
+	else if (!WIFSTOPPED(status)) 
+		deletejob(jobs, pid);
 }
 
 /*****************
@@ -301,9 +313,7 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-	pid_t pid;
-	if ((pid = waitpid(-1, NULL, 0)) > 0)
-		deletejob(jobs, pid);
+
     return;
 }
 
@@ -317,6 +327,7 @@ void sigint_handler(int sig)
 	pid_t pid;	
 	if ((pid = fgpid(jobs))) {
 		printf("Job [%d] (%d) terminated by signal 2\n", getjobpid(jobs, pid)->jid, pid);
+		kill(pid, SIGINT);
 	}
     return;
 }
@@ -329,8 +340,12 @@ void sigint_handler(int sig)
 void sigtstp_handler(int sig) 
 {	
 	pid_t pid;	
-	if ((pid = fgpid(jobs))) 
-		printf("Job [%d] (%d) stopped by signal 20\n", getjobpid(jobs, pid)->jid, pid);
+	if ((pid = fgpid(jobs))) {
+		struct job_t *job = getjobpid(jobs, pid);
+		printf("Job [%d] (%d) stopped by signal 20\n", job->jid, pid);
+		job->state = ST;
+		kill(pid, SIGTSTP);
+	}
     return;
 }
 
