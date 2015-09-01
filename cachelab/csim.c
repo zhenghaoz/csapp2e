@@ -3,9 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
-int verbose = 0, setsize, lnsize, blksize;
-char const *tracefile;
+struct line {
+	bool valid;
+	unsigned long long tag;
+};
 
 static void printUsage(char const *exename)
 {
@@ -24,6 +27,13 @@ static void printUsage(char const *exename)
 
 int main(int argc, char const *argv[])
 {
+	char instr;
+	unsigned long long address, size;
+	int miss = 0, hit = 0, eviction = 0;
+	int verbose = 0, setsize, lnsize, blksize;	/* Options */
+	char const *tracefile;	
+	FILE *fp;
+
 	/* Parse arguments */
 	int i;
 	for (i = 1; i < argc; ++i) {
@@ -36,24 +46,63 @@ int main(int argc, char const *argv[])
 			if (!(setsize = atoi(argv[i+1]))) {
 				printf("%s: Missing required command line argument\n", argv[0]);
 				printUsage(argv[0]);
+				return 1;
 			}
 		} else if (!strcmp(argv[i], "-E")) {/* Number of line per set */
 			if (!(lnsize = atoi(argv[i+1]))) {
 				printf("%s: Missing required command line argument\n", argv[0]);
 				printUsage(argv[0]);
+				return 1;
 			}
 		} else if (!strcmp(argv[i], "-b")) {/* Number of block offset bits */
 			if (!(blksize = atoi(argv[i+1]))) {
 				printf("%s: Missing required command line argument\n", argv[0]);
 				printUsage(argv[0]);
+				return 1;
 			}
 		} else if (!strcmp(argv[i], "-t")) {/* Trace file */
 			if ((tracefile = argv[++i]) == NULL) {
 				printf("%s: option requires an argument -- 't'\n", argv[0]);
 				printUsage(argv[0]);
+				return 1;
 			}
 		}
 	}
-	printSummary(0, 0, 0);
+
+	/* Check options */
+	if (!setsize || !lnsize || !blksize) {
+		printf("%s: option requires an argument -- 't'\n", argv[0]);
+		printUsage(argv[0]);
+		return 1;
+	}
+
+	/* Open trace file */
+	if ((fp = fopen(tracefile, "r")) == NULL) {
+		printf("%s: No such file or directory\n", tracefile);
+		return 1;
+	}
+
+	/* Build cache */
+
+
+	/* Load instrument */
+	while (fscanf(fp, " %c %llu,%llu", &instr, &address, &size) != EOF) {
+		if (verbose)
+			printf("%c %llu,%llu\n", instr, address, size);
+		switch (instr) {
+			case 'M':
+				break;
+			case 'L':
+				break;
+			case 'S':
+				break;
+		}
+	}
+
+	/* Close file */
+	fclose(fp);
+
+	/* Print summary */
+	printSummary(hit, miss, eviction);
 	return 0;
 }
