@@ -5,11 +5,21 @@
 #include <string.h>
 #include <stdbool.h>
 
+/* Parse address */
+#define GET_TAG(addr)		(addr >> (s+b))
+#define GET_OFFSET(addr)	(addr & ~(-1L<<b))
+#define GET_SET(addr)		((addr>>b) & ~(-1L<<s))
+
 /* Cache line struct */
 struct line {
 	bool valid;
 	unsigned long long tag;
 };
+
+/* Varinet */
+static int hit_count = 0, miss_count = 0, eviction_count = 0;	/* Summary */
+static int s, b, E;											/* Option */
+static struct line **cache;									/* Cache entry */
 
 /*
  * printUsage - print usage
@@ -29,27 +39,36 @@ static void printUsage(char const *exename)
 	printf("  linux>  %s -v -s 8 -E 2 -b 4 -t traces/yi.trace\n", exename);	
 }
 
-/* 
- * parseAddr - parse 64-bit address
+/*
+ * load - load data
  */
-static void parseAddr(unsigned long long addr, int s, int b, unsigned long long *tag, int *set, int *offset)
+static void load(unsigned long long addr)
 {
-	*tag = addr >> (s+b);		/* Get tag */
-	*offset = addr & ~(-1<<b);	/* Get offset */
-	*set = addr>>b & ~(-1<<s);	/* Get set */
+
+}
+
+/*
+ * save - save data
+ */
+static void save(unsigned long long addr)
+{
+
+}
+
+/*
+ * modify - modify data
+ */
+static void modify(unsigned long long addr)
+{
+
 }
 
 int main(int argc, char const *argv[])
 {
 	char instr;
 	unsigned long long address, size;
-	int miss = 0, hit = 0, eviction = 0;
-	int verbose = 0, setnum, lnnum, blksize;	/* Options */
 	char const *tracefile;	
 	FILE *fp;
-
-	/* Cache entry */
-	struct line **cache; 
 
 	/* Parse arguments */
 	int i;
@@ -112,10 +131,6 @@ int main(int argc, char const *argv[])
 	while (fscanf(fp, " %c %llu,%llu", &instr, &address, &size) != EOF) {
 		if (verbose)
 			printf("%c %llu,%llu\n", instr, address, size);
-		/* Parse address */
-		unsigned long long tag;
-		int set, offset;
-		parseAddr(address, setnum, blksize, &tag, &set, &offset);
 		switch (instr) {
 			case 'M':	/* Data modify */
 				break;
@@ -135,6 +150,6 @@ int main(int argc, char const *argv[])
 	fclose(fp);
 
 	/* Print summary */
-	printSummary(hit, miss, eviction);
+	printSummary(hit_count, miss_count, eviction_count);
 	return 0;
 }
