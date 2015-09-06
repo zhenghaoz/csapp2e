@@ -4,7 +4,7 @@ HANDINDIR = /afs/cs/academic/class/15213-f02/L7/handin
 
 CC = gcc
 CFLAGS = -Wall -g 
-LDFLAGS = -lpthread
+LDFLAGS = -pthread
 
 OBJS = proxy.o csapp.o
 
