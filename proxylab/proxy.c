@@ -2,8 +2,7 @@
  * proxy.c - CS:APP Web proxy
  *
  * TEAM MEMBERS:
- *     Andrew Carnegie, ac00@cs.cmu.edu 
- *     Harry Q. Bovik, bovik@cs.cmu.edu
+ *     zhangzhenghao@zjut.edu.cn
  * 
  * IMPORTANT: Give a high level description of your code here. You
  * must also provide a header comment at the beginning of each
@@ -12,12 +11,14 @@
 
 #include "csapp.h"
 
+#define MAXRAW (1<<20)
+
 /*
  * Function prototypes
  */
-void doit(int fd);
-void read_requesthdrs(rio_t *rp);
-int parse_uri(char *uri, char *target_addr, char *path, int  *port);
+void doit(int fd, struct sockaddr_in sockaddr);
+int read_hdrs(rio_t *rp, char *headers);
+int parse_uri(char *uri, char *target_addr, char *path, int *port);
 void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *errnum);
@@ -29,7 +30,8 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, 
  */
 int main(int argc, char **argv)
 {
-    int listenfd, connfd, port, clientlen;
+    int listenfd, connfd, port;
+    socklen_t clientlen;
     struct sockaddr_in clientaddr;
 
     /* Check arguments */
@@ -39,12 +41,11 @@ int main(int argc, char **argv)
     }
     port = atoi(argv[1]);
 
-
     listenfd = Open_listenfd(port);
     while (1) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-        doit(connfd);
+        doit(connfd, clientaddr);
         Close(connfd);
     }
     exit(0);
@@ -53,44 +54,47 @@ int main(int argc, char **argv)
 /*
  * doit - handles one HTTP transaction
  */
-void doit(int fd)
+void doit(int fd, struct sockaddr_in sockaddr)
 {
-    int is_static, port;
-    struct stat sbuf;
-    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char filename[MAXLINE], cgiargs[MAXLINE];
-    rio_t rio;
+    int serverfd, port, content_length;
+    char hostname[MAXLINE], pathname[MAXLINE], headers[MAXBUF], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+    char request[MAXBUF], response[MAXBUF], raw[MAXRAW];
+    rio_t rio_client, rio_server;
 
     /* Read request line and headers */
-    Rio_readinitb(&rio, fd);
-    Rio_readlineb(&rio, buf, MAXLINE);
+    Rio_readinitb(&rio_client, fd);
+    Rio_readlineb(&rio_client, buf, MAXLINE);
     sscanf(buf, "%s %s %s", method, uri, version);
-    if (strcasecmp(method, "GET")) {
-        clienterror(fd, method, "501", "Not Implemented", "Tiny does not implement");
-        return;
-    }
-    read_requesthdrs(&rio);
+    read_hdrs(&rio_client, headers);
 
-    /* Parse URI from GET request */
-    is_static = parse_uri(uri, filename, cgiargs, &port);
-    if (stat(filename, &sbuf) < 0) {
-        clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
+    /* Parse URI from request */
+    if (parse_uri(uri, hostname, pathname, &port) == -1) {
+        clienterror(fd, uri, "502", "Proxy error", "The request is not a HTTP request");
         return;
     }
 
-    if (is_static) {
-        if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) {
-            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
-            return;
-        }
-        serve_static(fd, filename, sbuf.st_size);
-    } else {
-        if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
-            clienterror(fd, filename, "403", "Forbidden", "TIny couldn't run the CGI program");
-            return;
-        }
-        serve_dynamic(fd, filename, cgiargs);
-    }
+    /* Build HTTP request */
+    sprintf(request, "%s /%s %s\r\n%s\r\n", method, pathname, version, headers);
+
+    printf("[resquest]\n%s\n", request);
+
+    /* Send HTTP resquest to the web server */
+    serverfd = Open_clientfd(hostname, port);
+    Rio_writen(serverfd, request, strlen(request));
+    Rio_readinitb(&rio_server, serverfd);
+    content_length = read_hdrs(&rio_server, headers);
+    Rio_readnb(&rio_server, raw, content_length);
+    Close(serverfd);
+
+    /* Build response header */
+    sprintf(response, "%s 200 OK\r\n", version);
+    sprintf(response, "%s%s\r\n", response, headers);
+
+    printf("[response]\n%s\n%s", headers, raw);
+
+    /* Send HTTP response to the client */
+    Rio_writen(fd, response, strlen(response));
+    Rio_writen(fd, raw, content_length);
 }
 
 /*
@@ -101,11 +105,11 @@ void doit(int fd)
     char buf[MAXLINE], body[MAXBUF];
 
     /* Build the HTTP response body */
-    sprintf(body, "<html><title>Tiny error</title>");
+    sprintf(body, "<html><title>Proxy error</title>");
     sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
     sprintf(body, "%s%s: %s\r\n", body, errornum, shortmsg);
     sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-    sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
+    sprintf(body, "%s<hr><em>The proxy server</em>\r\n", body);
 
     /* Print the HTTP response */
     sprintf(buf, "HTTP/1.0 %s %s\r\n", errornum, shortmsg);
@@ -118,17 +122,26 @@ void doit(int fd)
  }
 
 /*
- * read_requesthdrs - reads and ignores request headers
+ * read_all - get all content
  */
- void read_requesthdrs(rio_t *rp)
+ int read_hdrs(rio_t *rp, char *content)
  {
+    int content_length = 0;
     char buf[MAXLINE];
 
     Rio_readlineb(rp, buf, MAXLINE);
+    strcpy(content, buf);
     while (strcmp(buf, "\r\n")) {
         Rio_readlineb(rp, buf, MAXLINE);
-        printf("%s", buf);
+        if (strncasecmp(buf, "Content-Length:", 15) == 0)
+            content_length = atoi(buf + 15);
+        if (strncasecmp(buf, "Proxy-Connection:", 17) == 0) {
+        	strcat(content, "Connection: keep-alive");
+            continue;
+        }
+        strcat(content, buf);
     }
+    return content_length;
  }
 
 /*
@@ -147,8 +160,8 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     int len;
 
     if (strncasecmp(uri, "http://", 7) != 0) {
-	hostname[0] = '\0';
-	return -1;
+    	hostname[0] = '\0';
+    	return -1;
     }
        
     /* Extract the host name */
@@ -165,77 +178,15 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     
     /* Extract the path */
     pathbegin = strchr(hostbegin, '/');
-    if (pathbegin == NULL) {
-	pathname[0] = '\0';
-    }
+    if (pathbegin == NULL)
+	   pathname[0] = '\0';
     else {
-	pathbegin++;	
-	strcpy(pathname, pathbegin);
+	   pathbegin++;	
+	   strcpy(pathname, pathbegin);
     }
 
     return 0;
 }
-
-/*
- * serve_static - serve static content to a client
- */
- void serve_static(int fd, char *filename, int filesize)
- {
-    int srcfd;
-    char *srcp, filetype[MAXLINE], buf[MAXBUF];
-
-    /* Send response headers to client */
-    get_filetype(filename, filetype);
-    sprintf(buf, "HTTP/1.0 200 OK\r\n");
-    sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
-    sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
-    sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
-    Rio_writen(fd, buf, strlen(buf));
-
-    /* Send response body to client */
-    srcfd = Open(filename, O_RDONLY, 0);
-    srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
-    Close(fd);
-    Rio_writen(fd, srcp, filesize);
-    Munmap(srcp, filesize);
- }
-
-/* 
- * get_filetype - derive file type from file name
- */
- void get_filetype(char *filename, char *filetype)
- {
-    if (strstr(filename, ".html"))
-        strcpy(filetype, "text/html");
-    else if (strstr(filename, ".gif"))
-        strcpy(filetype, "image/gif");
-    else if (strstr(filename, ".jpg"))
-        strcpy(filetype, "image/jpg");
-    else
-        strcpy(filetype, "text/plain");
- }
-
-/*
- * serve_dynamic - serve dynamic content to a client
- */
- void serve_dynamic(int fd, char *filename, char *cgiargs)
- {
-    char buf[MAXLINE], *emptylist[] = {NULL};
-
-    /* Return first part of HTTP response */
-    sprintf(buf, "HTTP/1.0 200 OK\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Server: Tiny Web Server\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-
-    if (fork() == 0) {
-        /* Real server would set all CGI vars here */
-        setenv("QUERY_STRING", cgiargs, 1);
-        Dup2(fd, STDOUT_FILENO);    /* Redirect stdout to client */
-        Execve(filename, emptylist, environ);   /* Run CGI program */
-    }
-    Wait(NULL); /* Parent waits for and reap child */
- }
 
 /*
  * format_log_entry - Create a formatted log entry in logstring. 
@@ -272,5 +223,3 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
     /* Return the formatted log entry string */
     sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
 }
-
-
