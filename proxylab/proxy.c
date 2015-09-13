@@ -13,17 +13,23 @@
 
 #define MAXRAW (1<<20)
 
+struct task {
+	int fd;
+	struct sockaddr_in sockaddr;
+};
+
 /*
  * Function prototypes
  */
 void doit(int fd, struct sockaddr_in sockaddr);
-int read_hdrs(rio_t *rp, char *headers);
+void read_hdrs(rio_t *rp, char *headers, int *length, int *chunked);
 int parse_uri(char *uri, char *target_addr, char *path, int *port);
 void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *errnum);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
+void *thread(void *vargp);
 
 /* 
  * main - Main routine for the proxy program 
@@ -32,6 +38,7 @@ int main(int argc, char **argv)
 {
     int listenfd, connfd, port;
     socklen_t clientlen;
+    pthread_t tid;
     struct sockaddr_in clientaddr;
 
     /* Check arguments */
@@ -45,10 +52,19 @@ int main(int argc, char **argv)
     while (1) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-        doit(connfd, clientaddr);
-        Close(connfd);
+        struct task vargp = {connfd, clientaddr};
+        Pthread_create(&tid, NULL, thread, &vargp);
     }
     exit(0);
+}
+
+void *thread(void *vargp)
+{
+	Pthread_detach(pthread_self());
+	struct task *tk = (struct task*)vargp;
+	doit(tk->fd, tk->sockaddr);
+	Close(tk->fd);
+	return NULL;
 }
 
 /*
@@ -56,7 +72,7 @@ int main(int argc, char **argv)
  */
 void doit(int fd, struct sockaddr_in sockaddr)
 {
-    int serverfd, port, content_length;
+    int serverfd, port, content_length, chunked_encode;
     char hostname[MAXLINE], pathname[MAXLINE], headers[MAXBUF], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char request[MAXBUF], response[MAXBUF], raw[MAXRAW];
     rio_t rio_client, rio_server;
@@ -65,7 +81,7 @@ void doit(int fd, struct sockaddr_in sockaddr)
     Rio_readinitb(&rio_client, fd);
     Rio_readlineb(&rio_client, buf, MAXLINE);
     sscanf(buf, "%s %s %s", method, uri, version);
-    read_hdrs(&rio_client, headers);
+    read_hdrs(&rio_client, headers, &content_length, &chunked_encode);
 
     /* Parse URI from request */
     if (parse_uri(uri, hostname, pathname, &port) == -1) {
@@ -81,20 +97,23 @@ void doit(int fd, struct sockaddr_in sockaddr)
     /* Send HTTP resquest to the web server */
     serverfd = Open_clientfd(hostname, port);
     Rio_writen(serverfd, request, strlen(request));
+
+    /* Get response header */
     Rio_readinitb(&rio_server, serverfd);
-    content_length = read_hdrs(&rio_server, headers);
-    Rio_readnb(&rio_server, raw, content_length);
-    Close(serverfd);
-
-    /* Build response header */
-    sprintf(response, "%s 200 OK\r\n", version);
-    sprintf(response, "%s%s\r\n", response, headers);
-
-    printf("[response]\n%s\n%s", headers, raw);
+    read_hdrs(&rio_server, response, &content_length, &chunked_encode);
 
     /* Send HTTP response to the client */
     Rio_writen(fd, response, strlen(response));
-    Rio_writen(fd, raw, content_length);
+
+    if (!chunked_encode) {	/* Encode with chunk */
+
+    } else {		/* Define length with Content-length */
+    	Rio_readnb(&rio_server, raw, content_length);
+    	Rio_writen(fd, raw, content_length);
+    }
+    Close(serverfd);
+  
+    printf("[response]\n%s", response);
 }
 
 /*
@@ -124,24 +143,25 @@ void doit(int fd, struct sockaddr_in sockaddr)
 /*
  * read_all - get all content
  */
- int read_hdrs(rio_t *rp, char *content)
+ void read_hdrs(rio_t *rp, char *content, int *length, int *chunked)
  {
-    int content_length = 0;
     char buf[MAXLINE];
+    *length = *chunked = 0;
 
     Rio_readlineb(rp, buf, MAXLINE);
     strcpy(content, buf);
     while (strcmp(buf, "\r\n")) {
         Rio_readlineb(rp, buf, MAXLINE);
         if (strncasecmp(buf, "Content-Length:", 15) == 0)
-            content_length = atoi(buf + 15);
+            *length = atoi(buf + 15);
+        if (strcmp(buf, "Transfer-Encoding: chunked"))
+        	*chunked = 1;
         if (strncasecmp(buf, "Proxy-Connection:", 17) == 0) {
         	strcat(content, "Connection: keep-alive");
             continue;
         }
         strcat(content, buf);
     }
-    return content_length;
  }
 
 /*
