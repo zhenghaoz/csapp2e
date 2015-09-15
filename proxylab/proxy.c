@@ -79,7 +79,7 @@ void doit(int fd, struct sockaddr_in sockaddr)
 
     /* Read request line and headers */
     Rio_readinitb(&rio_client, fd);
-    Rio_readlineb(&rio_client, buf, MAXLINE);
+    Rio_readlineb_w(&rio_client, buf, MAXLINE);
     sscanf(buf, "%s %s %s", method, uri, version);
     read_hdrs(&rio_client, headers, &content_length, &chunked_encode);
 
@@ -90,14 +90,14 @@ void doit(int fd, struct sockaddr_in sockaddr)
     }
 
     /* Build HTTP request */
-    sprintf(request, "%s /%s %s\r\n%s", method, pathname, version, headers);
+    sprintf(request, "%s /%s %s\r\n%s\r\n", method, pathname, version, headers);
 
     /* Send HTTP resquest to the web server */
     serverfd = Open_clientfd(hostname, port);
-    Rio_writen(serverfd, request, strlen(request));
+    Rio_writen_w(serverfd, request, strlen(request));
     if (!strcmp(method, "POST")) {	/* POST request */
-    	Rio_readnb(&rio_client, raw, content_length);
-    	Rio_writen(serverfd, raw, content_length);
+    	Rio_readnb_w(&rio_client, raw, content_length);
+    	Rio_writen_w(serverfd, raw, content_length);
     }
 
     printf("[resquest]\n%s%s", request, raw);
@@ -107,13 +107,13 @@ void doit(int fd, struct sockaddr_in sockaddr)
     read_hdrs(&rio_server, response, &content_length, &chunked_encode);
 
     /* Send HTTP response to the client */
-    Rio_writen(fd, response, strlen(response));
+    Rio_writen_w(fd, response, strlen(response));
 
     if (!chunked_encode) {	/* Encode with chunk */
 
     } else {		/* Define length with Content-length */
-    	Rio_readnb(&rio_server, raw, content_length);
-    	Rio_writen(fd, raw, content_length);
+    	Rio_readnb_w(&rio_server, raw, content_length);
+    	Rio_writen_w(fd, raw, content_length);
     }
     Close(serverfd);
   
@@ -136,12 +136,12 @@ void doit(int fd, struct sockaddr_in sockaddr)
 
     /* Print the HTTP response */
     sprintf(buf, "HTTP/1.0 %s %s\r\n", errornum, shortmsg);
-    Rio_writen(fd, buf, strlen(buf));
+    Rio_writen_w(fd, buf, strlen(buf));
     sprintf(buf, "Content-type: text/html\r\n");
-    Rio_writen(fd, buf, strlen(buf));
+    Rio_writen_w(fd, buf, strlen(buf));
     sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
-    Rio_writen(fd, buf, strlen(buf));
-    Rio_writen(fd, body, strlen(body));
+    Rio_writen_w(fd, buf, strlen(buf));
+    Rio_writen_w(fd, body, strlen(body));
  }
 
 /*
@@ -152,10 +152,10 @@ void doit(int fd, struct sockaddr_in sockaddr)
     char buf[MAXLINE];
     *length = *chunked = 0;
 
-    Rio_readlineb(rp, buf, MAXLINE);
+    Rio_readlineb_w(rp, buf, MAXLINE);
     strcpy(content, buf);
     while (strcmp(buf, "\r\n")) {
-        Rio_readlineb(rp, buf, MAXLINE);
+        Rio_readlineb_w(rp, buf, MAXLINE);
         if (strncasecmp(buf, "Content-Length:", 15) == 0)
             *length = atoi(buf + 15);
         if (strcmp(buf, "Transfer-Encoding: chunked"))
