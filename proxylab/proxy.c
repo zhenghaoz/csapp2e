@@ -90,13 +90,17 @@ void doit(int fd, struct sockaddr_in sockaddr)
     }
 
     /* Build HTTP request */
-    sprintf(request, "%s /%s %s\r\n%s\r\n", method, pathname, version, headers);
-
-    printf("[resquest]\n%s\n", request);
+    sprintf(request, "%s /%s %s\r\n%s", method, pathname, version, headers);
 
     /* Send HTTP resquest to the web server */
     serverfd = Open_clientfd(hostname, port);
     Rio_writen(serverfd, request, strlen(request));
+    if (!strcmp(method, "POST")) {	/* POST request */
+    	Rio_readnb(&rio_client, raw, content_length);
+    	Rio_writen(serverfd, raw, content_length);
+    }
+
+    printf("[resquest]\n%s%s", request, raw);
 
     /* Get response header */
     Rio_readinitb(&rio_server, serverfd);
