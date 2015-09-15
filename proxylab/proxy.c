@@ -24,6 +24,7 @@ struct task {
 void doit(int fd, struct sockaddr_in sockaddr);
 void read_hdrs(rio_t *rp, char *headers, int *length, int *chunked);
 int parse_uri(char *uri, char *target_addr, char *path, int *port);
+int parse_chunked_header(char *chunked_header);
 void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *errnum);
@@ -72,7 +73,7 @@ void *thread(void *vargp)
  */
 void doit(int fd, struct sockaddr_in sockaddr)
 {
-    int serverfd, port, content_length, chunked_encode;
+    int serverfd, port, content_length, chunked_encode, chunked_length;
     char hostname[MAXLINE], pathname[MAXLINE], headers[MAXBUF], buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char request[MAXBUF], response[MAXBUF], raw[MAXRAW];
     rio_t rio_client, rio_server;
@@ -109,9 +110,22 @@ void doit(int fd, struct sockaddr_in sockaddr)
     /* Send HTTP response to the client */
     Rio_writen_w(fd, response, strlen(response));
 
-    if (!chunked_encode) {	/* Encode with chunk */
-
-    } else {		/* Define length with Content-length */
+    if (chunked_encode) {	/* Encode with chunk */
+    	Rio_readlineb_w(&rio_server, buf, MAXLINE);
+    	Rio_writen_w(fd, buf, strlen(buf));
+    	while (strcmp(buf, "0\r\n")) {
+    		chunked_length = parse_chunked_header(buf);
+    		printf("%s = %x\n", buf, chunked_length);
+    		Rio_readnb_w(&rio_server, raw, chunked_length);
+    		Rio_writen_w(fd, raw, chunked_length);
+    		Rio_readlineb_w(&rio_server, buf, MAXLINE);
+    		Rio_writen_w(fd, buf, strlen(buf));
+    		Rio_readlineb_w(&rio_server, buf, MAXLINE);
+    		Rio_writen_w(fd, buf, strlen(buf));
+    	}
+    	Rio_readlineb_w(&rio_server, buf, MAXLINE);
+    	Rio_writen_w(fd, buf, strlen(buf));
+    } else {				/* Define length with Content-length */
     	Rio_readnb_w(&rio_server, raw, content_length);
     	Rio_writen_w(fd, raw, content_length);
     }
@@ -158,7 +172,7 @@ void doit(int fd, struct sockaddr_in sockaddr)
         Rio_readlineb_w(rp, buf, MAXLINE);
         if (strncasecmp(buf, "Content-Length:", 15) == 0)
             *length = atoi(buf + 15);
-        if (strcmp(buf, "Transfer-Encoding: chunked"))
+        if (strncasecmp(buf, "Transfer-Encoding: chunked", 26) == 0)
         	*chunked = 1;
         if (strncasecmp(buf, "Proxy-Connection:", 17) == 0) {
         	strcat(content, "Connection: keep-alive");
@@ -246,4 +260,19 @@ void format_log_entry(char *logstring, struct sockaddr_in *sockaddr,
 
     /* Return the formatted log entry string */
     sprintf(logstring, "%s: %d.%d.%d.%d %s", time_str, a, b, c, d, uri);
+}
+
+/*
+ * Parse chunked header - Get chunked length from header 
+ */
+int parse_chunked_header(char *chunked_header)
+{
+	char ch;
+	int i, length = 0;
+	for (i = 0; (ch = chunked_header[i]) != '\r'; i++)
+		if (isdigit(ch))
+			length = length*16 + ch - '0';
+		else
+			length = length*16 + ch - 'A' + 10;
+	return length;
 }
