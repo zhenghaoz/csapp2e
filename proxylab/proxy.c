@@ -18,6 +18,9 @@ struct task {
 	struct sockaddr_in sockaddr;
 };
 
+/* Mutex */
+static sem_t open_clientfd_mutex;
+
 /*
  * Function prototypes
  */
@@ -31,6 +34,10 @@ void serve_dynamic(int fd, char *filename, char *errnum);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void format_log_entry(char *logstring, struct sockaddr_in *sockaddr, char *uri, int size);
 void *thread(void *vargp);
+void Rio_writen_w(int fd, void *usrbuf, size_t n);
+ssize_t Rio_readnb_w(rio_t *rp, void *usrbuf, size_t n);
+ssize_t Rio_readlineb_w(rio_t *rp, void *usrbuf, size_t maxlen);
+int open_clientfd_ts(char *hostname, int port);
 
 /* 
  * main - Main routine for the proxy program 
@@ -48,6 +55,12 @@ int main(int argc, char **argv)
     	exit(0);
     }
     port = atoi(argv[1]);
+
+    /* Initial mutex */
+    Sem_init(&open_clientfd_mutex, 0, 1);
+
+    /* Ignore SIGPIPE signals */
+    Signal(SIGPIPE, SIG_IGN);
 
     listenfd = Open_listenfd(port);
     while (1) {
@@ -129,7 +142,7 @@ void doit(int fd, struct sockaddr_in sockaddr)
     	Rio_readnb_w(&rio_server, raw, content_length);
     	Rio_writen_w(fd, raw, content_length);
     }
-    Close(serverfd);
+    close(serverfd);
   
     printf("[response]\n%s", response);
 }
@@ -197,7 +210,7 @@ int parse_uri(char *uri, char *hostname, char *pathname, int *port)
     char *pathbegin;
     int len;
 
-    if (strncasecmp(uri, "http://", 7) != 0) {
+    if (strncasecmp(uri, "http://", 7) != 0 && strncasecmp(uri, "https://", 8) != 0) {
     	hostname[0] = '\0';
     	return -1;
     }
@@ -276,3 +289,71 @@ int parse_chunked_header(char *chunked_header)
 			length = length*16 + ch - 'A' + 10;
 	return length;
 }
+
+/*************************************
+ * Robust I/O routines wrapper for web
+ *************************************/
+void Rio_writen_w(int fd, void *usrbuf, size_t n) 
+{
+    if (rio_writen(fd, usrbuf, n) != n)
+        fprintf(stderr, "Rio_writen_w error: %s\n", strerror(errno));
+}
+
+ssize_t Rio_readnb_w(rio_t *rp, void *usrbuf, size_t n) 
+{
+    ssize_t rc;
+
+    if ((rc = rio_readnb(rp, usrbuf, n)) < 0) {
+        fprintf(stderr, "Rio_readnb_w error: %s\n", strerror(errno));
+        return 0;
+    }
+    return rc;
+}
+
+ssize_t Rio_readlineb_w(rio_t *rp, void *usrbuf, size_t maxlen) 
+{
+    ssize_t rc;
+
+    if ((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0) {
+        fprintf(stderr, "Rio_readlineb_w error: %s\n", strerror(errno));
+        return 0;
+    }
+    return rc;
+} 
+
+/*
+ * open_clientfd (thread safe version) - open connection to server at <hostname, port> 
+ *   and return a socket descriptor ready for reading and writing.
+ *   Returns -1 and sets errno on Unix error. 
+ *   Returns -2 and sets h_errno on DNS (gethostbyname) error.
+ */
+/* $begin open_clientfd_ts */
+int open_clientfd_ts(char *hostname, int port) 
+{
+    int clientfd;
+    struct hostent *hp, *sharedp;
+    struct sockaddr_in serveraddr;
+
+    if ((clientfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    return -1; /* check errno for cause of error */
+
+    /* Fill in the server's IP address and port */
+    P(&open_clientfd_mutex);
+    if ((sharedp = gethostbyname(hostname)) == NULL)
+    	return -2; /* check h_errno for cause of error */
+    hp = (struct hostent*) malloc(sizeof(struct hostent));
+    memcpy(hp, sharedp, sizeof(struct hostent));
+    V(&open_clientfd_mutex);
+    bzero((char *) &serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    bcopy((char *)hp->h_addr_list[0], 
+      (char *)&serveraddr.sin_addr.s_addr, hp->h_length);
+    serveraddr.sin_port = htons(port);
+    free(hp);
+
+    /* Establish a connection with the server */
+    if (connect(clientfd, (SA *) &serveraddr, sizeof(serveraddr)) < 0)
+    return -1;
+    return clientfd;
+}
+/* $end open_clientfd */
