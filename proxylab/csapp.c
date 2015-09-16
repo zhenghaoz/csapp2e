@@ -716,37 +716,6 @@ ssize_t Rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     return rc;
 } 
 
-/*************************************
- * Robust I/O routines wrapper for web
- *************************************/
-void Rio_writen_w(int fd, void *usrbuf, size_t n) 
-{
-    if (rio_writen(fd, usrbuf, n) != n)
-        fprintf(stderr, "Rio_writen_w error: %s\n", strerror(errno));
-}
-
-ssize_t Rio_readnb_w(rio_t *rp, void *usrbuf, size_t n) 
-{
-    ssize_t rc;
-
-    if ((rc = rio_readnb(rp, usrbuf, n)) < 0) {
-        fprintf(stderr, "Rio_readnb_w error: %s\n", strerror(errno));
-        return 0;
-    }
-    return rc;
-}
-
-ssize_t Rio_readlineb_w(rio_t *rp, void *usrbuf, size_t maxlen) 
-{
-    ssize_t rc;
-
-    if ((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0) {
-        fprintf(stderr, "Rio_readlineb_w error: %s\n", strerror(errno));
-        return 0;
-    }
-    return rc;
-} 
-
 /******************************** 
  * Client/server helper functions
  ********************************/
