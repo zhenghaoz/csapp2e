@@ -75,9 +75,9 @@ int main(int argc, char **argv)
 void *thread(void *vargp)
 {
 	Pthread_detach(pthread_self());
-	struct task *tk = (struct task*)vargp;
-	doit(tk->fd, tk->sockaddr);
-	Close(tk->fd);
+	struct task *thread_task = (struct task*)vargp;
+	doit(thread_task->fd, thread_task->sockaddr);
+	close(thread_task->fd);
 	return NULL;
 }
 
@@ -93,7 +93,9 @@ void doit(int fd, struct sockaddr_in sockaddr)
 
     /* Read request line and headers */
     Rio_readinitb(&rio_client, fd);
-    Rio_readlineb_w(&rio_client, buf, MAXLINE);
+    if (Rio_readlineb_w(&rio_client, buf, MAXLINE) <= 0)
+    	return;
+    printf("%s\n", buf);
     sscanf(buf, "%s %s %s", method, uri, version);
     read_hdrs(&rio_client, headers, &content_length, &chunked_encode);
 
@@ -107,14 +109,16 @@ void doit(int fd, struct sockaddr_in sockaddr)
     sprintf(request, "%s /%s %s\r\n%s\r\n", method, pathname, version, headers);
 
     /* Send HTTP resquest to the web server */
-    serverfd = Open_clientfd(hostname, port);
+    serverfd = open_clientfd_ts(hostname, port);
     Rio_writen_w(serverfd, request, strlen(request));
-    if (!strcmp(method, "POST")) {	/* POST request */
+    if (strcmp(method, "POST") == 0) {	/* POST request */
     	Rio_readnb_w(&rio_client, raw, content_length);
     	Rio_writen_w(serverfd, raw, content_length);
+    } else if (strcmp(method, "CONNECT") == 0) {
+    	return;
     }
 
-    printf("[resquest]\n%s%s", request, raw);
+    printf("[resquest in %d]\n%s%s", fd, request, raw);
 
     /* Get response header */
     Rio_readinitb(&rio_server, serverfd);
@@ -126,9 +130,8 @@ void doit(int fd, struct sockaddr_in sockaddr)
     if (chunked_encode) {	/* Encode with chunk */
     	Rio_readlineb_w(&rio_server, buf, MAXLINE);
     	Rio_writen_w(fd, buf, strlen(buf));
-    	while (strcmp(buf, "0\r\n")) {
-    		chunked_length = parse_chunked_header(buf);
-    		printf("%s = %x\n", buf, chunked_length);
+    	while ((chunked_length = parse_chunked_header(buf)) > 0) {
+    		/*printf("%s = %x\n", buf, chunked_length);*/
     		Rio_readnb_w(&rio_server, raw, chunked_length);
     		Rio_writen_w(fd, raw, chunked_length);
     		Rio_readlineb_w(&rio_server, buf, MAXLINE);
@@ -138,13 +141,16 @@ void doit(int fd, struct sockaddr_in sockaddr)
     	}
     	Rio_readlineb_w(&rio_server, buf, MAXLINE);
     	Rio_writen_w(fd, buf, strlen(buf));
-    } else {				/* Define length with Content-length */
+    } else if (content_length > 0) {				/* Define length with Content-length */
     	Rio_readnb_w(&rio_server, raw, content_length);
     	Rio_writen_w(fd, raw, content_length);
+    } else {
+    	while ((chunked_length = Rio_readlineb_w(&rio_server, raw, MAXLINE)) > 0)
+    		Rio_writen_w(fd, raw, chunked_length);
     }
     close(serverfd);
   
-    printf("[response]\n%s", response);
+    printf("[response in %d]\n%s", fd, response);
 }
 
 /*
@@ -187,10 +193,8 @@ void doit(int fd, struct sockaddr_in sockaddr)
             *length = atoi(buf + 15);
         if (strncasecmp(buf, "Transfer-Encoding: chunked", 26) == 0)
         	*chunked = 1;
-        if (strncasecmp(buf, "Proxy-Connection:", 17) == 0) {
-        	strcat(content, "Connection: keep-alive");
+        if (strncasecmp(buf, "Proxy-Connection:", 17) == 0)
             continue;
-        }
         strcat(content, buf);
     }
  }
@@ -285,8 +289,10 @@ int parse_chunked_header(char *chunked_header)
 	for (i = 0; (ch = chunked_header[i]) != '\r'; i++)
 		if (isdigit(ch))
 			length = length*16 + ch - '0';
-		else
+		else if (ch >= 'A' && ch <= 'F')
 			length = length*16 + ch - 'A' + 10;
+		else
+			return -1;
 	return length;
 }
 
@@ -296,7 +302,7 @@ int parse_chunked_header(char *chunked_header)
 void Rio_writen_w(int fd, void *usrbuf, size_t n) 
 {
     if (rio_writen(fd, usrbuf, n) != n)
-        fprintf(stderr, "Rio_writen_w error: %s\n", strerror(errno));
+        fprintf(stderr, "[%d] Rio_writen_w error: %s\n", fd, strerror(errno));
 }
 
 ssize_t Rio_readnb_w(rio_t *rp, void *usrbuf, size_t n) 
@@ -315,7 +321,7 @@ ssize_t Rio_readlineb_w(rio_t *rp, void *usrbuf, size_t maxlen)
     ssize_t rc;
 
     if ((rc = rio_readlineb(rp, usrbuf, maxlen)) < 0) {
-        fprintf(stderr, "Rio_readlineb_w error: %s\n", strerror(errno));
+        fprintf(stderr, "[%d] Rio_readlineb_w error: %s\n", rp->rio_fd, strerror(errno));
         return 0;
     }
     return rc;
@@ -339,8 +345,10 @@ int open_clientfd_ts(char *hostname, int port)
 
     /* Fill in the server's IP address and port */
     P(&open_clientfd_mutex);
-    if ((sharedp = gethostbyname(hostname)) == NULL)
-    	return -2; /* check h_errno for cause of error */
+    if ((sharedp = gethostbyname(hostname)) == NULL) {
+    	V(&open_clientfd_mutex);	/* very important */
+    	return -2; 					/* check h_errno for cause of error */
+    }
     hp = (struct hostent*) malloc(sizeof(struct hostent));
     memcpy(hp, sharedp, sizeof(struct hostent));
     V(&open_clientfd_mutex);
