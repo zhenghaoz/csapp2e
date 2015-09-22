@@ -101,7 +101,7 @@ void doit(int fd, struct sockaddr_in sockaddr)
 
     /* Parse URI from request */
     if (parse_uri(uri, hostname, pathname, &port) == -1) {
-        clienterror(fd, uri, "502", "Proxy error", "The request is not a HTTP request");
+        clienterror(fd, uri, "502", "Proxy error", "Can't parse uri.");
         return;
     }
 
@@ -114,7 +114,8 @@ void doit(int fd, struct sockaddr_in sockaddr)
     if (strcmp(method, "POST") == 0) {	/* POST request */
     	Rio_readnb_w(&rio_client, raw, content_length);
     	Rio_writen_w(serverfd, raw, content_length);
-    } else if (strcmp(method, "CONNECT") == 0) {
+    } else if (strcmp(method, "CONNECT")) {
+    	clienterror(fd, uri, "502", "Proxy error", "Not support this kind of request.");
     	return;
     }
 
