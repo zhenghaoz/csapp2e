@@ -22,24 +22,29 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
-    int ii, jj, i, j, blocksize;
-    
-    if (M == 32 && N == 32)
+    int i, ii, j, jj, blocksize;
+    if (M == 32 && N == 32) {
         blocksize = 8;
-    else if (M == 64 && N == 64)
-        blocksize = 4;
-    else
-        blocksize = 4;
-
-    int em = blocksize*((M+blocksize-1)/blocksize);
-    int en = blocksize*((N+blocksize-1)/blocksize);
-
-    for (ii = 0; ii < en; ii += blocksize) 
-        for (jj = 0; jj < em; jj += blocksize)
-            for (i = ii; i < (ii+blocksize) && i < N; i++)
-                for (j = jj; j < (jj+blocksize) && j < M; j++) {
-                    B[j][i] = A[i][j];
-                }
+        for (ii = 0; ii < N; ii += blocksize)
+            for (jj = 0; jj < M; jj += blocksize)
+               for (i = ii; i < ii+blocksize; i++)
+                    for (j = jj; j < jj+blocksize; j++)
+                            B[j][i] = A[i][j];
+    } else if (M == 64 && N == 64) {
+        blocksize = 4;  
+        for (ii = 0; ii < N; ii += blocksize)
+            for (jj = 0; jj < M; jj += blocksize)
+               for (i = ii; i < ii+blocksize; i++)
+                    for (j = jj; j < jj+blocksize; j++)
+                            B[j][i] = A[i][j];
+    } else {
+        blocksize = 8;
+        for (ii = 0; ii < N; ii += blocksize)
+            for (jj = 0; jj < M; jj += blocksize)
+               for (i = ii; i < ii+blocksize && i < N; i++) 
+                    for (j = jj; j < jj+blocksize && j < M; j++) 
+                            B[j][i] = A[i][j];
+    }
 }
 
 /* 
