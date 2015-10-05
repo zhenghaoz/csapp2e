@@ -24,25 +24,16 @@
  ********************************************************/
 team_t team = {
     /* Team name */
-    "ateam",
+    "Team-Z",
     /* First member's full name */
-    "Harry Bovik",
+    "Zhang Zhenghao",
     /* First member's email address */
-    "bovik@cs.cmu.edu",
+    "zhangzhenghao@zjut.edu.cn",
     /* Second member's full name (leave blank if none) */
     "",
     /* Second member's email address (leave blank if none) */
     ""
 };
-
-/* single word (4) or double word (8) alignment */
-#define ALIGNMENT 8
-
-/* rounds up to the nearest multiple of ALIGNMENT */
-#define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
-
-
-#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* Basic constants and macros */
 #define WSIZE       4
@@ -120,12 +111,34 @@ static void *extend_heap(size_t words)
 
 static void *find_fit(size_t asize)
 {
+    int block_size;
+    void *heap_listp = mem_heap_lo() + DSIZE;
 
+    /* Find available block */
+    while ((block_size = GET_SIZE(HDRP(heap_listp)))) {
+        if (block_size >= asize && GET_ALLOC(HDRP(heap_listp)) == 0)
+            return heap_listp;
+        heap_listp = NEXT_BLKP(heap_listp);
+    }
+
+    /* Available block not found */
+    return NULL;
 }
 
 static void place(void *bp, size_t asize)
 {
+    int block_size = GET_SIZE(HDRP(bp));
+    int left_size = block_size - asize;
 
+    /* Place block */
+    PUT(HDRP(bp), PACK(asize, 1));
+    PUT(FTRP(bp), PACK(asize, 1));
+
+    /* Place left block */
+    if (left_size) {
+        PUT(HDRP(NEXT_BLKP(bp)), PACK(left_size, 0));
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(left_size, 0));
+    }
 }
 
 /* 
@@ -175,8 +188,8 @@ void *mm_malloc(size_t size)
     }
 
     /* No fit found. Get more memory and place the block */
-    asize = MAX(asize, CHUNKSIZE);
-    if (bp = extend_heap(extendsize/WSIZE) == NULL)
+    extendsize = MAX(asize, CHUNKSIZE);
+    if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
         return NULL;
     place(bp, asize);
     return bp;
@@ -187,7 +200,7 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *bp)
 {
-    size_t size = GET_SIZE(bp);
+    size_t size = GET_SIZE(HDRP(bp));
     PUT(HDRP(bp), PACK(size, 0));
     PUT(FTRP(bp), PACK(size, 0));
     coalesce(bp);
@@ -198,17 +211,62 @@ void mm_free(void *bp)
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-    void *oldptr = ptr;
     void *newptr;
-    size_t copySize;
-    
-    newptr = mm_malloc(size);
-    if (newptr == NULL)
-      return NULL;
-    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    if (size < copySize)
-      copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
-    return newptr;
+    size_t copySize, oldSize, nextSize;
+    size_t asize;
+
+    /* If ptr == NULL */
+    if (ptr == NULL)
+        return mm_malloc(size);
+
+    /* If size == 0 */
+    if (size == 0) {
+        mm_free(ptr);
+        return NULL;
+    }
+
+    if (size <= DSIZE)
+        asize = 2*DSIZE;
+    else
+        asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
+    oldSize = GET_SIZE(HDRP(ptr));
+
+    if (asize < oldSize) {           /* New block size is smaller than old block */
+        PUT(HDRP(ptr), PACK(asize, 1));
+        PUT(FTRP(ptr), PACK(asize, 1));
+        PUT(HDRP(NEXT_BLKP(ptr)), PACK(oldSize - asize, 0));
+        PUT(FTRP(NEXT_BLKP(ptr)), PACK(oldSize - asize, 0));
+        return ptr;
+    } else if (asize == oldSize) {   /* New block size is equal to old block */
+        return ptr;
+    } else {                        /* New block size is bigger than old block */
+        nextSize = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
+        if (nextSize + oldSize >= asize) {
+            PUT(HDRP(ptr), PACK(asize, 1));
+            PUT(FTRP(ptr), PACK(asize, 1));
+            if (nextSize + oldSize > asize) {
+                PUT(HDRP(NEXT_BLKP(ptr)), PACK(nextSize + oldSize - asize, 0));
+                PUT(FTRP(NEXT_BLKP(ptr)), PACK(nextSize + oldSize - asize, 0));
+            }
+            return ptr;
+        } else {
+            newptr = mm_malloc(size);
+            if (newptr == NULL)
+              return NULL;
+            copySize = oldSize - DSIZE;
+            if (size < copySize)
+              copySize = size;
+            memcpy(newptr, ptr, copySize);
+            mm_free(ptr);
+            return newptr;
+        }
+    }
+}
+
+/*
+ * mm_check - Heap consistency checker
+ */
+int mm_check(void)
+{
+    return 1;
 }
