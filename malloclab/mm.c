@@ -212,8 +212,8 @@ void mm_free(void *bp)
 void *mm_realloc(void *ptr, size_t size)
 {
     void *newptr;
-    size_t copySize, oldSize, nextSize;
-    size_t asize;
+    size_t copy_size, old_size, asize;
+    size_t prev_alloc, prev_size, next_alloc, next_size;
 
     /* If ptr == NULL */
     if (ptr == NULL)
@@ -229,37 +229,58 @@ void *mm_realloc(void *ptr, size_t size)
         asize = 2*DSIZE;
     else
         asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
-    oldSize = GET_SIZE(HDRP(ptr));
+    old_size = GET_SIZE(HDRP(ptr));
 
-    if (asize < oldSize) {           /* New block size is smaller than old block */
+    if (asize < old_size) {           /* New block size is smaller than old block */
         PUT(HDRP(ptr), PACK(asize, 1));
         PUT(FTRP(ptr), PACK(asize, 1));
-        PUT(HDRP(NEXT_BLKP(ptr)), PACK(oldSize - asize, 0));
-        PUT(FTRP(NEXT_BLKP(ptr)), PACK(oldSize - asize, 0));
+        PUT(HDRP(NEXT_BLKP(ptr)), PACK(old_size - asize, 0));
+        PUT(FTRP(NEXT_BLKP(ptr)), PACK(old_size - asize, 0));
         return ptr;
-    } else if (asize == oldSize) {   /* New block size is equal to old block */
+    } else if (asize == old_size) {   /* New block size is equal to old block */
         return ptr;
-    } else {                        /* New block size is bigger than old block */
-        nextSize = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
-        if (nextSize + oldSize >= asize) {
+    } else {                          /* New block size is bigger than old block */
+        next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(ptr)));
+        prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(ptr)));
+        next_size = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
+        prev_size = GET_SIZE(HDRP(PREV_BLKP(ptr)));
+        if (next_alloc == 0 && next_size + old_size >= asize) {
             PUT(HDRP(ptr), PACK(asize, 1));
             PUT(FTRP(ptr), PACK(asize, 1));
-            if (nextSize + oldSize > asize) {
-                PUT(HDRP(NEXT_BLKP(ptr)), PACK(nextSize + oldSize - asize, 0));
-                PUT(FTRP(NEXT_BLKP(ptr)), PACK(nextSize + oldSize - asize, 0));
+            if (next_size + old_size > asize) {
+                PUT(HDRP(NEXT_BLKP(ptr)), PACK(next_size + old_size - asize, 0));
+                PUT(FTRP(NEXT_BLKP(ptr)), PACK(next_size + old_size - asize, 0));
             }
             return ptr;
+        } else if (prev_alloc == 0 && prev_size + old_size >= asize) {
+            newptr = PREV_BLKP(ptr);
+            PUT(HDRP(newptr), PACK(asize, 1));
+            memcpy(newptr, ptr, old_size - DSIZE);
+            PUT(FTRP(newptr), PACK(asize, 1));
+            if (prev_size + old_size > asize) {
+                PUT(HDRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size - asize, 0));
+                PUT(FTRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size - asize, 0));
+            }
+        } else if (prev_alloc == 0 && next_alloc == 0 && prev_size + old_size + next_size >= asize) {
+            newptr = PREV_BLKP(ptr);
+            PUT(HDRP(newptr), PACK(asize, 1));
+            memcpy(newptr, ptr, old_size - DSIZE);
+            PUT(FTRP(newptr), PACK(asize, 1));
+            if (prev_size + old_size + next_size > asize) {
+                PUT(HDRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size + next_size - asize, 0));
+                PUT(FTRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size + next_size - asize, 0));
+            }
         } else {
             newptr = mm_malloc(size);
             if (newptr == NULL)
               return NULL;
-            copySize = oldSize - DSIZE;
-            if (size < copySize)
-              copySize = size;
-            memcpy(newptr, ptr, copySize);
+            copy_size = old_size - DSIZE;
+            if (size < copy_size)
+              copy_size = size;
+            memcpy(newptr, ptr, copy_size);
             mm_free(ptr);
-            return newptr;
         }
+        return newptr;
     }
 }
 
