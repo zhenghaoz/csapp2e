@@ -1,0 +1,47 @@
+# Execution begins at address 0 
+			.pos 0
+init: 		irmovl Stack, %esp	 	# set up stack pointer 
+			irmovl Stack, %ebp 		# set up base pointer 
+			call Main 				# execute main program 
+			halt 					# terminate program 
+
+# Sample linked list
+			.align 4
+ele1:
+			.long 0X00a
+			.long ele2
+ele2:
+			.long 0x0b0
+			.long ele3
+ele3:
+			.long 0xc00
+			.long 0
+
+Main: 		pushl %ebp 
+			rrmovl %esp,%ebp
+			irmovl ele1,%eax
+			pushl %eax 				# push ele1
+			call sum_list			# sum_list(ele1) 
+			rrmovl %ebp,%esp
+			popl %ebp
+			ret
+
+# int sum_list(list_ptr ls)
+sum_list: 	pushl %ebp 
+			rrmovl %esp,%ebp
+			mrmovl 8(%ebp),%ecx 	# ecx = ele1
+			xorl %eax, %eax			# eax = 0
+			andl %ecx, %ecx 		# test ecx
+			je End
+Loop:		mrmovl (%ecx),%esi		# get *ls
+			addl %esi,%eax			# add to sum
+			mrmovl 4(%ecx), %ecx 	# ls = ls->next
+			andl %ecx, %ecx 		# test ecx
+			jne Loop
+End: 		rrmovl %ebp,%esp
+			popl %ebp
+			ret
+
+# The stack starts here and grows to lower addresses 
+			.pos 0x100
+Stack:
