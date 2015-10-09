@@ -17,7 +17,7 @@ TKLIBS=-L/usr/lib -ltk -ltcl
 # header files on your system. Comment this out if you don't have
 # Tcl/Tk.
 
-TKINC=-isystem /usr/include
+TKINC=-isystem /usr/include/tk
 
 # Modify these two lines to choose your compiler and compile time
 # flags.
