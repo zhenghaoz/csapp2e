@@ -61,7 +61,10 @@ team_t team = {
 #define NEXT_BLKP(bp)   ((char*)(bp) + GET_SIZE(((char*)(bp) - WSIZE)))
 #define PREV_BLKP(bp)   ((char*)(bp) - GET_SIZE(((char*)(bp) - DSIZE)))
 
-static void *coalesce(void *bp) 
+/* Last fit block's next pointer */
+static void *next_pointer = NULL;
+
+static void *coalesce(void *bp)
 {
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
@@ -112,12 +115,24 @@ static void *extend_heap(size_t words)
 static void *find_fit(size_t asize)
 {
     int block_size;
-    void *heap_listp = mem_heap_lo() + DSIZE;
+    void *heap_listp = next_pointer;
 
-    /* Find available block */
+    /* Find available block next last pointer */
     while ((block_size = GET_SIZE(HDRP(heap_listp)))) {
-        if (block_size >= asize && GET_ALLOC(HDRP(heap_listp)) == 0)
+        if (block_size >= asize && GET_ALLOC(HDRP(heap_listp)) == 0) {
+            next_pointer = heap_listp;
             return heap_listp;
+        }
+        heap_listp = NEXT_BLKP(heap_listp);
+    }
+
+    /* Find available block before last pointer */
+    heap_listp = mem_heap_lo() + DSIZE;
+    while (heap_listp < next_pointer) {
+        if (GET_SIZE(HDRP(heap_listp)) >= asize && GET_ALLOC(HDRP(heap_listp)) == 0) {
+            next_pointer = heap_listp;
+            return heap_listp;
+        }
         heap_listp = NEXT_BLKP(heap_listp);
     }
 
@@ -148,6 +163,9 @@ int mm_init(void)
 {
     void *heap_listp = NULL;
 
+    /* Init next pointer */
+    next_pointer = mem_heap_lo() + DSIZE;
+
     /* Create the initial heap */
     if ((heap_listp = mem_sbrk(4*WSIZE)) == (void*)-1)
         return -1;
@@ -169,7 +187,7 @@ int mm_init(void)
 void *mm_malloc(size_t size)
 {
     size_t asize;        /* Adjusted block size */
-    size_t extendsize;  /* Amount to extend a heap if no fit */
+    size_t extendsize;   /* Amount to extend a heap if no fit */
     char *bp;
 
     /* Ignore spurious request */
@@ -204,6 +222,7 @@ void mm_free(void *bp)
     PUT(HDRP(bp), PACK(size, 0));
     PUT(FTRP(bp), PACK(size, 0));
     coalesce(bp);
+    next_pointer = mem_heap_lo() + DSIZE;
 }
 
 /*
@@ -212,82 +231,69 @@ void mm_free(void *bp)
 void *mm_realloc(void *ptr, size_t size)
 {
     void *newptr;
-    size_t copy_size, old_size, asize;
+    size_t old_size, asize, left_size = 0, total_size = 0;
     size_t prev_alloc, prev_size, next_alloc, next_size;
 
-    /* If ptr == NULL */
+    /* If ptr equals to NULL, do malloc */
     if (ptr == NULL)
         return mm_malloc(size);
 
-    /* If size == 0 */
+    /* If size equals to 0, do free */
     if (size == 0) {
         mm_free(ptr);
         return NULL;
     }
 
+    /* Calculate new block size */
     if (size <= DSIZE)
         asize = 2*DSIZE;
     else
         asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
+
+    /* Get information about block size and allocate status */
+    next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(ptr)));
+    prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(ptr)));
+    next_size = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
+    prev_size = GET_SIZE(HDRP(PREV_BLKP(ptr)));
     old_size = GET_SIZE(HDRP(ptr));
 
-    if (asize < old_size) {           /* New block size is smaller than old block */
+    /* New block size is equal to old block */
+    if (asize == old_size)
+        return ptr;
+
+    /* New block size is smaller than old block */
+    if (asize < old_size) {           
         PUT(HDRP(ptr), PACK(asize, 1));
         PUT(FTRP(ptr), PACK(asize, 1));
         PUT(HDRP(NEXT_BLKP(ptr)), PACK(old_size - asize, 0));
         PUT(FTRP(NEXT_BLKP(ptr)), PACK(old_size - asize, 0));
         return ptr;
-    } else if (asize == old_size) {   /* New block size is equal to old block */
-        return ptr;
-    } else {                          /* New block size is bigger than old block */
-        next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(ptr)));
-        prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(ptr)));
-        next_size = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
-        prev_size = GET_SIZE(HDRP(PREV_BLKP(ptr)));
-        if (next_alloc == 0 && next_size + old_size >= asize) {
-            PUT(HDRP(ptr), PACK(asize, 1));
-            PUT(FTRP(ptr), PACK(asize, 1));
-            if (next_size + old_size > asize) {
-                PUT(HDRP(NEXT_BLKP(ptr)), PACK(next_size + old_size - asize, 0));
-                PUT(FTRP(NEXT_BLKP(ptr)), PACK(next_size + old_size - asize, 0));
-            }
-            return ptr;
-        } else if (prev_alloc == 0 && prev_size + old_size >= asize) {
-            newptr = PREV_BLKP(ptr);
-            PUT(HDRP(newptr), PACK(asize, 1));
-            memcpy(newptr, ptr, old_size - DSIZE);
-            PUT(FTRP(newptr), PACK(asize, 1));
-            if (prev_size + old_size > asize) {
-                PUT(HDRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size - asize, 0));
-                PUT(FTRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size - asize, 0));
-            }
-        } else if (prev_alloc == 0 && next_alloc == 0 && prev_size + old_size + next_size >= asize) {
-            newptr = PREV_BLKP(ptr);
-            PUT(HDRP(newptr), PACK(asize, 1));
-            memcpy(newptr, ptr, old_size - DSIZE);
-            PUT(FTRP(newptr), PACK(asize, 1));
-            if (prev_size + old_size + next_size > asize) {
-                PUT(HDRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size + next_size - asize, 0));
-                PUT(FTRP(NEXT_BLKP(newptr)), PACK(prev_size + old_size + next_size - asize, 0));
-            }
-        } else {
-            newptr = mm_malloc(size);
-            if (newptr == NULL)
-              return NULL;
-            copy_size = old_size - DSIZE;
-            if (size < copy_size)
-              copy_size = size;
-            memcpy(newptr, ptr, copy_size);
-            mm_free(ptr);
-        }
+    } 
+
+    /* New block size is bigger than old block */
+    if (next_alloc == 0 && (total_size = next_size + old_size) >= asize) {
+        newptr = ptr;
+    } else if ((prev_alloc == 0 && (total_size = prev_size + old_size) >= asize)
+        || (prev_alloc == 0 && next_alloc == 0 && (total_size = prev_size + old_size + next_size) >= asize)) {
+        newptr = PREV_BLKP(ptr);
+    } else {   
+        if ((newptr = mm_malloc(size)) == NULL)
+            return NULL;
+        memcpy(newptr, ptr, old_size - DSIZE);
+        mm_free(ptr);
         return newptr;
     }
-}
 
-/*
- * mm_check - Heap consistency checker
- */
-int mm_check(void)
-{
-    return 1;
+    /* Place */
+    next_pointer = mem_heap_lo() + DSIZE;
+    PUT(HDRP(newptr), PACK(asize, 1));
+    if (newptr != ptr)
+        memcpy(newptr, ptr, old_size - DSIZE);
+    PUT(FTRP(newptr), PACK(asize, 1));
+    if ((left_size = total_size - asize) > 0) {
+        PUT(HDRP(NEXT_BLKP(newptr)), PACK(left_size, 0));
+        PUT(FTRP(NEXT_BLKP(newptr)), PACK(left_size, 0));
+    }
+
+    return newptr;
 }
