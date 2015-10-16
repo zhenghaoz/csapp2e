@@ -86,48 +86,6 @@ void rotate(int dim, pixel *src, pixel *dst)
     }
 }
 
-char rotate_descr_sr[] = "rotate: Succesive reading version";
-void rotate_sr(int dim, pixel *src, pixel *dst) 
-{
-    int i, j;
-
-    for (i = 0; i < dim; i++)
-    for (j = 0; j < dim; j+=32) {
-        dst[RIDX(dim-1-j, i, dim)] = src[RIDX(i, j, dim)];
-        dst[RIDX(dim-2-j, i, dim)] = src[RIDX(i, j+1, dim)];
-        dst[RIDX(dim-3-j, i, dim)] = src[RIDX(i, j+2, dim)];
-        dst[RIDX(dim-4-j, i, dim)] = src[RIDX(i, j+3, dim)];
-        dst[RIDX(dim-5-j, i, dim)] = src[RIDX(i, j+4, dim)];
-        dst[RIDX(dim-6-j, i, dim)] = src[RIDX(i, j+5, dim)];
-        dst[RIDX(dim-7-j, i, dim)] = src[RIDX(i, j+6, dim)];
-        dst[RIDX(dim-8-j, i, dim)] = src[RIDX(i, j+7, dim)];
-        dst[RIDX(dim-9-j, i, dim)] = src[RIDX(i, j+8, dim)];
-        dst[RIDX(dim-10-j, i, dim)] = src[RIDX(i, j+9, dim)];
-        dst[RIDX(dim-11-j, i, dim)] = src[RIDX(i, j+10, dim)];
-        dst[RIDX(dim-12-j, i, dim)] = src[RIDX(i, j+11, dim)];
-        dst[RIDX(dim-13-j, i, dim)] = src[RIDX(i, j+12, dim)];
-        dst[RIDX(dim-14-j, i, dim)] = src[RIDX(i, j+13, dim)];
-        dst[RIDX(dim-15-j, i, dim)] = src[RIDX(i, j+14, dim)];
-        dst[RIDX(dim-16-j, i, dim)] = src[RIDX(i, j+15, dim)];
-        dst[RIDX(dim-17-j, i, dim)] = src[RIDX(i, j+16, dim)];
-        dst[RIDX(dim-18-j, i, dim)] = src[RIDX(i, j+17, dim)];
-        dst[RIDX(dim-19-j, i, dim)] = src[RIDX(i, j+18, dim)];
-        dst[RIDX(dim-20-j, i, dim)] = src[RIDX(i, j+19, dim)];
-        dst[RIDX(dim-21-j, i, dim)] = src[RIDX(i, j+20, dim)];
-        dst[RIDX(dim-22-j, i, dim)] = src[RIDX(i, j+21, dim)];
-        dst[RIDX(dim-23-j, i, dim)] = src[RIDX(i, j+22, dim)];
-        dst[RIDX(dim-24-j, i, dim)] = src[RIDX(i, j+23, dim)];
-        dst[RIDX(dim-25-j, i, dim)] = src[RIDX(i, j+24, dim)];
-        dst[RIDX(dim-26-j, i, dim)] = src[RIDX(i, j+25, dim)];
-        dst[RIDX(dim-27-j, i, dim)] = src[RIDX(i, j+26, dim)];
-        dst[RIDX(dim-28-j, i, dim)] = src[RIDX(i, j+27, dim)];
-        dst[RIDX(dim-29-j, i, dim)] = src[RIDX(i, j+28, dim)];
-        dst[RIDX(dim-30-j, i, dim)] = src[RIDX(i, j+29, dim)];
-        dst[RIDX(dim-31-j, i, dim)] = src[RIDX(i, j+30, dim)];
-        dst[RIDX(dim-32-j, i, dim)] = src[RIDX(i, j+31, dim)];
-    }
-}
-
 /*********************************************************************
  * register_rotate_functions - Register all of your different versions
  *     of the rotate kernel with the driver by calling the
@@ -139,8 +97,7 @@ void rotate_sr(int dim, pixel *src, pixel *dst)
 void register_rotate_functions() 
 {
     add_rotate_function(&naive_rotate, naive_rotate_descr);   
-    add_rotate_function(&rotate, rotate_descr);  
-    add_rotate_function(&rotate_sr, rotate_descr_sr);   
+    add_rotate_function(&rotate, rotate_descr);   
     /* ... Register additional test functions here */
 }
 
@@ -218,6 +175,43 @@ static pixel avg(int dim, int i, int j, pixel *src)
     return current_pixel;
 }
 
+static void pixel_sum_sum(pixel_sum *sum_dst, const pixel_sum *sum_src)
+{
+    sum_dst->red += sum_src->red;
+    sum_dst->green += sum_src->green;
+    sum_dst->blue += sum_src->blue;
+    sum_dst->num += sum_src->num;
+}
+
+static pixel_sum col_sum(int dim, int i, int j, pixel *src)
+{
+    int ii;
+    pixel_sum sum;
+
+    initialize_pixel_sum(&sum);
+    if (j >= 0 && j < dim)
+        for (ii = max(i-1, 0); ii <= min(i+1, dim-1); ii++)
+            accumulate_sum(&sum, src[RIDX(ii, j, dim)]);
+    return sum;
+}
+
+/*
+ *
+ */
+static pixel avg_from_col_sum(int dim, int i, int j, const pixel_sum *col1, const pixel_sum *col2, const pixel_sum *col3)
+{
+    pixel_sum sum;
+    pixel current_pixel;
+
+    initialize_pixel_sum(&sum);
+    if (j > 0)  pixel_sum_sum(&sum, col1);
+    if (j < dim-1)  pixel_sum_sum(&sum, col3);
+    pixel_sum_sum(&sum, col2);
+
+    assign_sum_to_pixel(&current_pixel, sum);
+    return current_pixel;
+}
+
 /******************************************************
  * Your different versions of the smooth kernel go here
  ******************************************************/
@@ -242,7 +236,20 @@ void naive_smooth(int dim, pixel *src, pixel *dst)
 char smooth_descr[] = "smooth: Current working version";
 void smooth(int dim, pixel *src, pixel *dst) 
 {
-    naive_smooth(dim, src, dst);
+    int i, j;
+    pixel_sum col1, col2, col3;
+    for (i = 0; i < dim; i++) {
+        initialize_pixel_sum(&col2);
+        initialize_pixel_sum(&col3);
+        col3 = col_sum(dim, i, 0, src);
+        for (j = 0; j < dim; j++) {
+            col1 = col2;
+            col2 = col3;
+            initialize_pixel_sum(&col3);
+            col3 = col_sum(dim, i, j+1, src);
+            dst[RIDX(i, j, dim)] = avg_from_col_sum(dim, i, j, &col1, &col2, &col3);
+        }
+    }
 }
 
 
