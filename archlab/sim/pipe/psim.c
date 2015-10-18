@@ -19,6 +19,8 @@
 #define MAXBUF 1024
 #define DEFAULTNAME "Y86 Simulator: "
 
+#define USE_INTERP_RESULT
+
 #ifdef HAS_GUI
 #include <tk.h>
 #endif /* HAS_GUI */
