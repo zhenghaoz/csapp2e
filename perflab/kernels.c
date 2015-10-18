@@ -175,43 +175,6 @@ static pixel avg(int dim, int i, int j, pixel *src)
     return current_pixel;
 }
 
-static void pixel_sum_sum(pixel_sum *sum_dst, const pixel_sum *sum_src)
-{
-    sum_dst->red += sum_src->red;
-    sum_dst->green += sum_src->green;
-    sum_dst->blue += sum_src->blue;
-    sum_dst->num += sum_src->num;
-}
-
-static pixel_sum col_sum(int dim, int i, int j, pixel *src)
-{
-    int ii;
-    pixel_sum sum;
-
-    initialize_pixel_sum(&sum);
-    if (j >= 0 && j < dim)
-        for (ii = max(i-1, 0); ii <= min(i+1, dim-1); ii++)
-            accumulate_sum(&sum, src[RIDX(ii, j, dim)]);
-    return sum;
-}
-
-/*
- *
- */
-static pixel avg_from_col_sum(int dim, int i, int j, const pixel_sum *col1, const pixel_sum *col2, const pixel_sum *col3)
-{
-    pixel_sum sum;
-    pixel current_pixel;
-
-    initialize_pixel_sum(&sum);
-    if (j > 0)  pixel_sum_sum(&sum, col1);
-    if (j < dim-1)  pixel_sum_sum(&sum, col3);
-    pixel_sum_sum(&sum, col2);
-
-    assign_sum_to_pixel(&current_pixel, sum);
-    return current_pixel;
-}
-
 /******************************************************
  * Your different versions of the smooth kernel go here
  ******************************************************/
@@ -239,15 +202,49 @@ void smooth(int dim, pixel *src, pixel *dst)
     int i, j;
     pixel_sum col1, col2, col3;
     for (i = 0; i < dim; i++) {
-        initialize_pixel_sum(&col2);
-        initialize_pixel_sum(&col3);
-        col3 = col_sum(dim, i, 0, src);
+        col2.red = col2.green = col2.blue = col2.num = 0;
+        col3.red = col3.green = col3.blue = col3.num = 0;
+        if (i < dim-1) {
+            col3.red += src[RIDX(i+1, 0, dim)].red;
+            col3.green += src[RIDX(i+1, 0, dim)].green;
+            col3.blue += src[RIDX(i+1, 0, dim)].blue;
+            col3.num++;
+        }
+        col3.red += src[RIDX(i, 0, dim)].red;
+        col3.green += src[RIDX(i, 0, dim)].green;
+        col3.blue += src[RIDX(i, 0, dim)].blue;
+        col3.num++;
+        if (i > 0) {
+            col3.red += src[RIDX(i-1, 0, dim)].red;
+            col3.green += src[RIDX(i-1, 0, dim)].green;
+            col3.blue += src[RIDX(i-1, 0, dim)].blue;
+            col3.num++;
+        }
         for (j = 0; j < dim; j++) {
             col1 = col2;
             col2 = col3;
-            initialize_pixel_sum(&col3);
-            col3 = col_sum(dim, i, j+1, src);
-            dst[RIDX(i, j, dim)] = avg_from_col_sum(dim, i, j, &col1, &col2, &col3);
+            col3.red = col3.green = col3.blue = col3.num = 0;
+            if (j < dim-1) {
+                col3.red += src[RIDX(i, j+1, dim)].red;
+                col3.green += src[RIDX(i, j+1, dim)].green;
+                col3.blue += src[RIDX(i, j+1, dim)].blue;
+                col3.num++;
+            }
+            if (j < dim-1 && i > 0) {
+                col3.red += src[RIDX(i-1, j+1, dim)].red;
+                col3.green += src[RIDX(i-1, j+1, dim)].green;
+                col3.blue += src[RIDX(i-1, j+1, dim)].blue;
+                col3.num++;
+            }
+            if (j < dim-1 && i < dim-1) {
+                col3.red += src[RIDX(i+1, j+1, dim)].red;
+                col3.green += src[RIDX(i+1, j+1, dim)].green;
+                col3.blue += src[RIDX(i+1, j+1, dim)].blue;
+                col3.num++;
+            }
+            dst[RIDX(i, j, dim)].red = (unsigned short) ((col1.red + col2.red + col3.red)/(col1.num + col2.num + col3.num));
+            dst[RIDX(i, j, dim)].green = (unsigned short) ((col1.green + col2.green + col3.green)/(col1.num + col2.num + col3.num));
+            dst[RIDX(i, j, dim)].blue = (unsigned short) ((col1.blue + col2.blue + col3.blue)/(col1.num + col2.num + col3.num));
         }
     }
 }
