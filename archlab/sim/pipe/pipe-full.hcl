@@ -263,7 +263,7 @@ int alufun = [
 ];
 
 ## Should the condition codes be updated?
-bool set_cc = E_icode == IOPL &&
+bool set_cc = E_icode in { IOPL, IIADDL } &&
 	# State changes only during normal operation
 	!m_stat in { SADR, SINS, SHLT } && !W_stat in { SADR, SINS, SHLT };
 

@@ -27,8 +27,7 @@ ncopy:	pushl %ebp		# Save old frame pointer
 	xorl %eax,%eax			# count = 0;
 	rrmovl %edx, %edi
 	iaddl $-8, %edi
-	andl %edi,%edi			# len < 8?
-	jl EleRest				# if so, goto EleLeft:
+	jl EleLeft				# if len < 8, goto EleLeft:
 Ele1:	mrmovl (%ebx), %esi	# read val from src...
 	rmmovl %esi, (%ecx)		# ...and store it to dst
 	andl %esi, %esi			# val <= 0?
@@ -73,10 +72,8 @@ Reapt:
 	iaddl $-8, %edx			# len-=8
 	iaddl $32, %ebx			# src+=8
 	iaddl $32, %ecx			# dst+=8
-	rrmovl %edx, %edi
-	iaddl $-7, %edi
-	andl %edi, %edi			# len > 7?
-	jg Ele1					# if so, goto Ele1:
+	iaddl $-8, %edi
+	jge Ele1					# if len >= 8, goto Ele1:
 EleLeft:andl %edx,%edx		# len <= 0?
 	jle Exit				# if so, goto Done:
 Loop:	mrmovl (%ebx), %esi	# read val from src...
@@ -84,11 +81,10 @@ Loop:	mrmovl (%ebx), %esi	# read val from src...
 	andl %esi, %esi			# val <= 0?
 	jle Npos				# if so, goto Npos:
 	iaddl $1, %eax			# count++
-Npos:	iaddl $-1, %edx		# len--
-	iaddl $4, %ebx			# src++
+Npos:	iaddl $4, %ebx			# src++
 	iaddl $4, %ecx			# dst++
-	andl %edx,%edx			# len > 0?
-	jg Loop					# if so, goto Loop:
+	iaddl $-1, %edx		# len--
+	jg Loop					# if len > 0, goto Loop:
 Exit:	jmp 0x29
 ##################################################################
 # Do not modify the following section of code
