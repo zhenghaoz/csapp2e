@@ -25,26 +25,16 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
     int i, ii, j, jj, blocksize;
     if (M == 32 && N == 32) {
         blocksize = 8;
-        for (ii = 0; ii < N; ii += blocksize)
-            for (jj = 0; jj < M; jj += blocksize)
-               for (i = ii; i < ii+blocksize; i++)
-                    for (j = jj; j < jj+blocksize; j++)
-                            B[j][i] = A[i][j];
     } else if (M == 64 && N == 64) {
         blocksize = 4;  
-        for (ii = 0; ii < N; ii += blocksize)
-            for (jj = 0; jj < M; jj += blocksize)
-               for (i = ii; i < ii+blocksize; i++)
-                    for (j = jj; j < jj+blocksize; j++)
-                            B[j][i] = A[i][j];
     } else {
         blocksize = 8;
-        for (ii = 0; ii < N; ii += blocksize)
-            for (jj = 0; jj < M; jj += blocksize)
-               for (i = ii; i < ii+blocksize && i < N; i++) 
-                    for (j = jj; j < jj+blocksize && j < M; j++) 
-                            B[j][i] = A[i][j];
     }
+    for (ii = 0; ii < N; ii += blocksize)
+        for (jj = 0; jj < M; jj += blocksize)
+            for (i = ii; i < ii+blocksize && i < N; i++) 
+                for (j = jj; j < jj+blocksize && j < M; j++) 
+                    B[j][i] = A[i][j];
 }
 
 /* 
