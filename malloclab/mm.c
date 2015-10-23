@@ -38,6 +38,7 @@ team_t team = {
 /* Basic constants and macros */
 #define WSIZE       4
 #define DSIZE       8
+#define QSIZE		16
 #define CHUNKSIZE   (1<<12)
 
 #define MAX(x, y)   (x > y ? x : y)
@@ -61,8 +62,27 @@ team_t team = {
 #define NEXT_BLKP(bp)   ((char*)(bp) + GET_SIZE(((char*)(bp) - WSIZE)))
 #define PREV_BLKP(bp)   ((char*)(bp) - GET_SIZE(((char*)(bp) - DSIZE)))
 
+/* Given block ptr bp, compute address of next and previous free blocks */
+#define PREV_FREE_BLKP(bp)	(*(unsigned int*)bp)
+#define NEXT_FREE_BLKP(bp)	(*((unsigned int*)bp + 1))
+
 /* Last fit block's next pointer */
 static void *next_pointer = NULL;
+
+/* Explict free list head and tail */
+static void *free_listp = NULL;
+
+static void push_back_node(void *free_block)
+{
+	PREV_FREE_BLKP(free_block) = (unsigned int)free_block;
+	NEXT_FREE_BLKP(free_block) = 0;
+	free_list_tail = free_block;
+}
+
+static void remove_node(void *free_block)
+{
+
+}
 
 static void *coalesce(void *bp)
 {
@@ -162,17 +182,20 @@ static void place(void *bp, size_t asize)
 int mm_init(void)
 {
     void *heap_listp = NULL;
-
-    /* Init next pointer */
-    next_pointer = mem_heap_lo() + DSIZE;
+    int i;
 
     /* Create the initial heap */
-    if ((heap_listp = mem_sbrk(4*WSIZE)) == (void*)-1)
+    if ((heap_listp = mem_sbrk(18*WSIZE)) == (void*)-1)
         return -1;
-    PUT(heap_listp, 0);                         /* Alignment padding */
-    PUT(heap_listp + (WSIZE), PACK(DSIZE, 1));  /* Prologue header */
-    PUT(heap_listp + (2*WSIZE), PACK(DSIZE, 1));/* Prologue footer */
-    PUT(heap_listp + (3*WSIZE), PACK(0, 1));    /* Epilogue header */
+    PUT(heap_listp, 0);                         	/* Alignment padding */
+    PUT(heap_listp + (WSIZE), PACK(16*WSIZE, 1));  	/* Prologue header */
+    PUT(heap_listp + (16*WSIZE), PACK(16*WSIZE, 1));/* Prologue footer */
+    PUT(heap_listp + (17*WSIZE), PACK(0, 1));    	/* Epilogue header */
+
+    /* Init segregated free list */
+    for (i = 2; i < 16; ++i) 
+    	PUT(heap_listp + (i*WSIZE), 0);
+    free_listp = heap_listp + (2*WSIZE);
 
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
