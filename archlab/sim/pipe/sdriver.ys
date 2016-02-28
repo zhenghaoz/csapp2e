@@ -23,7 +23,9 @@ StartFun:
 # Include your name and ID here.
 #
 # Describe how and why you modified the baseline code.
-#
+# 1. replace all addl with iaddl;
+# 2. unrolled loop (copy 8 elements each loop);
+# 3. jump to main function directly.
 ##################################################################
 # Do not modify this portion
 # Function prologue.
@@ -39,60 +41,68 @@ ncopy:	pushl %ebp		# Save old frame pointer
 ##################################################################
 # You can modify this portion
 	# Loop header
-	xorl %eax,%eax		# count = 0;
+	xorl %eax,%eax			# count = 0;
 	rrmovl %edx, %edi
-	iaddl $-4, %edi
-	andl %edi,%edi		# len < 4?
-	jl End		# if so, goto Done:
-
-Ele1:	mrmovl (%ebx), %esi	# read val1 from src...
-	rmmovl %esi, (%ecx)	# ...and store it to dst
-	andl %esi, %esi		# val <= 0?
-	jle Ele2		# if so, goto Ele2:
-	iaddl $1, %eax		# count++
-Ele2:	mrmovl 4(%ebx), %esi	# read val1 from src...
+	iaddl $-8, %edi
+	jl EleLeft				# if len < 8, goto EleLeft:
+Ele1:	mrmovl (%ebx), %esi	# read val from src...
+	rmmovl %esi, (%ecx)		# ...and store it to dst
+	andl %esi, %esi			# val <= 0?
+	jle Ele2				# if so, goto Ele2:
+	iaddl $1, %eax			# count++
+Ele2:	mrmovl 4(%ebx), %esi# read val from src...
 	rmmovl %esi, 4(%ecx)	# ...and store it to dst
-	andl %esi, %esi		# val <= 0?
-	jle Ele3		# if so, goto Npos:
-	iaddl $1, %eax		# count++
-Ele3:	mrmovl 8(%ebx), %esi	# read val1 from src...
+	andl %esi, %esi			# val <= 0?
+	jle Ele3				# if so, goto Ele3:
+	iaddl $1, %eax			# count++
+Ele3:	mrmovl 8(%ebx), %esi# read val from src...
 	rmmovl %esi, 8(%ecx)	# ...and store it to dst
-	andl %esi, %esi		# val <= 0?
-	jle Ele4		# if so, goto Npos:
-	iaddl $1, %eax		# count
-Ele4:	mrmovl 12(%ebx), %esi	# read val1 from src...
+	andl %esi, %esi			# val <= 0?
+	jle Ele4				# if so, goto Ele4:
+	iaddl $1, %eax			# count
+Ele4:	mrmovl 12(%ebx), %esi# read val from src...
 	rmmovl %esi, 12(%ecx)	# ...and store it to dst
-	andl %esi, %esi		# val <= 0?
-	jle Reapt		# if so, goto Npos:
-	iaddl $1, %eax		# count
+	andl %esi, %esi			# val <= 0?
+	jle Ele5				# if so, goto Ele5:
+	iaddl $1, %eax			# count
+Ele5:	mrmovl 16(%ebx), %esi	# read val from src...
+	rmmovl %esi, 16(%ecx)	# ...and store it to dst
+	andl %esi, %esi			# val <= 0?
+	jle Ele6				# if so, goto Ele6:
+	iaddl $1, %eax			# count++
+Ele6:	mrmovl 20(%ebx), %esi# read val from src...
+	rmmovl %esi, 20(%ecx)	# ...and store it to dst
+	andl %esi, %esi			# val <= 0?
+	jle Ele7				# if so, goto Ele7:
+	iaddl $1, %eax			# count++
+Ele7:	mrmovl 24(%ebx), %esi# read val from src...
+	rmmovl %esi, 24(%ecx)	# ...and store it to dst
+	andl %esi, %esi			# val <= 0?
+	jle Ele8				# if so, goto Ele8:
+	iaddl $1, %eax			# count++
+Ele8:	mrmovl 28(%ebx), %esi# read val from src...
+	rmmovl %esi, 28(%ecx)	# ...and store it to Reapt
+	andl %esi, %esi			# val <= 0?
+	jle Reapt				# if so, goto Reapt:
+	iaddl $1, %eax			# count++
 Reapt:
-	iaddl $-4, %edx		# len-=4
-	iaddl $16, %ebx		# src+=4
-	iaddl $16, %ecx		# dst+=4
-	rrmovl %edx, %edi
-	iaddl $-3, %edi
-	andl %edi, %edi		# len > 3?
-	jg Ele1			# if so, goto Loop:
-
-End:
-andl %edx,%edx		# len <= 0?
-	jle Done		# if so, goto Done:
-
+	iaddl $-8, %edx			# len-=8
+	iaddl $32, %ebx			# src+=8
+	iaddl $32, %ecx			# dst+=8
+	iaddl $-8, %edi
+	jge Ele1					# if len >= 8, goto Ele1:
+EleLeft:andl %edx,%edx		# len <= 0?
+	jle Exit				# if so, goto Done:
 Loop:	mrmovl (%ebx), %esi	# read val from src...
-	rmmovl %esi, (%ecx)	# ...and store it to dst
-	andl %esi, %esi		# val <= 0?
-	jle Npos		# if so, goto Npos:
-	irmovl $1, %edi
-	addl %edi, %eax		# count++
-Npos:	irmovl $1, %edi
-	subl %edi, %edx		# len--
-	irmovl $4, %edi
-	addl %edi, %ebx		# src++
-	addl %edi, %ecx		# dst++
-	andl %edx,%edx		# len > 0?
-	jg Loop			# if so, goto Loop:
-Halt:
-	halt
+	rmmovl %esi, (%ecx)		# ...and store it to dst
+	andl %esi, %esi			# val <= 0?
+	jle Npos				# if so, goto Npos:
+	iaddl $1, %eax			# count++
+Npos:	iaddl $4, %ebx			# src++
+	iaddl $4, %ecx			# dst++
+	iaddl $-1, %edx		# len--
+	jg Loop					# if len > 0, goto Loop:
+Exit:	jmp 0x29
 ##################################################################
 # Do not modify the following section of code
 # Function epilogue.
@@ -115,9 +125,9 @@ EndFun:
 	.align 4
 src:
 	.long -1
-	.long 2
+	.long -2
 	.long 3
-	.long -4
+	.long 4
 	.long 0xbcdefa # This shouldn't get moved
 
 	.align 16
