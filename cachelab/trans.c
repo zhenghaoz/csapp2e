@@ -26,13 +26,13 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
     if (M == 32 && N == 32) {
         blocksize = 8;
     } else if (M == 64 && N == 64) {
-        blocksize = 4;  
+        blocksize = 4; 
     } else {
-        blocksize = 8;
+        blocksize = 16;
     }
     for (ii = 0; ii < N; ii += blocksize)
         for (jj = 0; jj < M; jj += blocksize)
-            for (i = ii; i < ii+blocksize && i < N; i++) 
+            for (i = ii; i < ii+blocksize && i < N; i++)
                 for (j = jj; j < jj+blocksize && j < M; j++) 
                     B[j][i] = A[i][j];
 }
