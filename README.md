@@ -15,7 +15,7 @@ This is my solution for labs in *Computer System:A Programmer's Perspective*
 | archlab | Completed |
 | perlab | Not efficient enough |
 | cachelab | Not efficient enough |
-| proxylab | Not stable enough  |
+| proxylab | Completed |
 | malloclab | Not efficient enough |
 
 ## Note
@@ -29,3 +29,5 @@ This is my solution for labs in *Computer System:A Programmer's Perspective*
 - [深入理解计算机系统：Unix Shell实验](http://sine-x.com/csapp-shlab/)
 
 - [深入理解计算机系统：体系结构实验](http://sine-x.com/csapp-archlab/)
+
+- [深入理解计算机系统：代理实验](http://sine-x.com/csapp-proxylab/)
