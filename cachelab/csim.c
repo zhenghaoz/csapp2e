@@ -5,35 +5,144 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
-
-/* Parse address */
-#define GET_TAG(addr)		(addr >> (s+b))
-#define GET_SET(addr)		((addr>>b) & ~(ULLONG_MAX<<s))
-
-/* Constant */
-#define SET_COUNT	(1<<s)
-
-/* Cache line struct */
-struct line {
-	bool valid;
-	unsigned long long tag;
-	unsigned long long lru_value;
-};
+#include <stdint.h>
+#include <stddef.h>
 
 /* Global varient  */
-static int hit_count = 0, miss_count = 0, eviction_count = 0;	/* Summary */
-static int s, b, E;												/* Option */
-static int verbose = 0;											/* Verbose */
-static char const *tracefile;									/* Trace file */
-static struct line **cache;										/* Cache entry */
 
-/* Extern function */
-int getopt(int argc, char const *argv[], const char *optstring);
+static int hit_count;
+static int miss_count;
+static int eviction_count;		
+static int verbose;			
 
-/*
- * printUsage - print usage
- */
-static void print_usage(char const *exename)
+/* Linked List */
+
+struct list_entry {
+    struct list_entry *prev;
+    struct list_entry *next;
+};
+
+#define list_next(le)	((le)->next)
+#define list_prev(le)	((le)->prev)
+#define list_empty(le)	((le)==(le)->prev&&(le)==(le)->next)
+
+static void list_init(struct list_entry *le) {
+    le->prev = le->next = le;
+}
+
+static void list_add(struct list_entry *li, struct list_entry *le) {
+    le->next = li->next;
+    le->next->prev = le;
+    le->prev = li;
+    le->prev->next = le;
+}
+
+#define list_add_after(li,le) (list_add(li,le))
+#define list_add_before(li,le) (list_add(list_prev(li),le))
+
+static void list_remove(struct list_entry *le) {
+    le->prev->next = le->next;
+    le->next->prev = le->prev;
+    list_init(le);
+}
+
+/* LRU Set */
+
+struct line {
+	bool valid;
+	uint64_t tag;
+	struct list_entry list;
+};
+
+#define le2line(lep)	((struct line*)((void*)(lep)-offsetof(struct line,list)))
+
+struct set
+{
+	size_t E;
+	struct list_entry head;
+	struct line *lines;
+};
+
+static void set_init(struct set *setp, size_t E) {
+	setp->E = E;
+	list_init(&(setp->head));
+	setp->lines = (struct line *) malloc(sizeof(struct line) * E);
+	for (int i = 0; i < E; i++) {
+		setp->lines[i].valid = 0;
+		setp->lines[i].list.prev = &(setp->lines[(i-1)%E].list);
+		setp->lines[i].list.next = &(setp->lines[(i+1)%E].list);
+	}
+	list_add_before(&(setp->lines[0].list), &(setp->head));
+}
+
+static void set_destroy(struct set *setp) {
+	free(setp->lines);
+}
+
+static void set_access(struct set *setp, uint64_t tag) {
+	// Hit
+	for (int i = 0; i < setp->E; i++)
+		if (setp->lines[i].valid && setp->lines[i].tag == tag) {
+			hit_count ++;
+			if (verbose)
+				printf(" hit");
+			struct list_entry *lep = &(setp->lines[i].list);
+			list_remove(lep);
+			list_add_before(&(setp->head), lep);
+			return;
+		}
+	// Miss
+	miss_count ++;
+	if (verbose)
+		printf(" miss");
+	struct list_entry *lep = list_next(&(setp->head));
+	struct line *lp = le2line(lep);
+	if (lp->valid) {
+		eviction_count ++;
+		if (verbose)
+			printf(" eviction");
+	}
+	lp->valid = 1;
+	lp->tag = tag;
+	list_remove(lep);
+	list_add_before(&(setp->head), lep);
+}
+
+/* Cache */
+
+#define addr_tag(cachep, addr)	((addr)>>((cachep)->s+(cachep)->b))
+#define addr_set(cachep, addr)	(((addr)>>(cachep)->b) & ~(ULLONG_MAX<<(cachep)->s))
+#define set_count(cachep)		(1<<(cachep)->s)
+
+struct cache {
+	int s, b, E;
+	struct set *sets;
+};
+
+static struct cache *cache_create(int s, int b, int E) {
+	struct cache *cachep = (struct cache *) malloc(sizeof(struct cache *));
+	cachep->s = s;
+	cachep->b = b;
+	cachep->E = E;
+	cachep->sets = (struct set *) malloc(sizeof(struct set) * set_count(cachep));
+	for (int i = 0; i < set_count(cachep); i++)
+		set_init(&(cachep->sets[i]), E);
+	return cachep;
+}
+
+static void cache_free(struct cache *cachep) {
+	for (int i = 0; i < set_count(cachep); i++)
+		set_destroy(&(cachep->sets[i]));
+	free(cachep->sets);
+}
+
+static void cache_access(struct cache *cachep, uint64_t addr) {
+	uint64_t set = addr_set(cachep, addr);
+	uint64_t tag = addr_tag(cachep, addr);
+	set_access(&(cachep->sets[set]), tag);
+}
+
+static void help(char const *exename)
 {
 	printf("Usage: %s [-hv] -s <num> -E <num> -b <num> -t <file>\n", exename);
 	printf("Options:\n");
@@ -48,68 +157,22 @@ static void print_usage(char const *exename)
 	printf("  linux>  %s -v -s 8 -E 2 -b 4 -t traces/yi.trace\n", exename);	
 }
 
-/*
- * load - load data
- */
-static void cache_access(unsigned long long addr)
-{
-	unsigned long long tag = GET_TAG(addr);	/* Get tag */
-	int set = GET_SET(addr);				/* Get set index */
-	struct line* lines = cache[set];		/* Get set entry */
-	unsigned long long min = ULLONG_MAX;	
-	int aim = -1, first_empty = -1, lru = -1;
-	for (int i = 0; i < E; ++i) {
-		/* Find hit line */
-		if (lines[i].valid && lines[i].tag == tag)
-			aim = i;
-		/* Decrease LRU value */
-		if (lines[i].valid)
-			lines[i].lru_value--;
-		/* Find unvaliable line */
-		if (!lines[i].valid && first_empty == -1)
-			first_empty = i;
-		/* Find LRU line */
-		if (lines[i].valid && lines[i].lru_value <= min) {
-			lru = i;
-			min = lines[i].lru_value;
-		}
-	}
-	/* Hit */
-	if (aim != -1) {
-		lines[aim].lru_value = ULLONG_MAX;
-		hit_count++;
-		if (verbose)
-			printf(" hit");
-		return;
-	}
-	/* Miss */
-	miss_count++;
-	if (first_empty != -1) {
-		lines[first_empty].valid = 1;
-		lines[first_empty].tag = tag;
-		lines[first_empty].lru_value = ULLONG_MAX;
-		if (verbose)
-			printf(" miss");
-		return;
-	}
-	/* Eviction */
-	lines[lru].valid = 1;
-	lines[lru].tag = tag;
-	lines[lru].lru_value = ULLONG_MAX;
-	eviction_count++;
-	if (verbose)
-		printf(" miss eviction");
-}
-
 int main(int argc, char const *argv[])
 {
-	/* Parse arguments */
-	int result;
+	/* Extern variant and function */
 	extern char *optarg;
-	while ((result = getopt(argc, argv, "hvs:E:b:t:")) != EOF) {
-		switch (result) {
+	int getopt(int argc, char const *argv[], const char *optstring);
+
+	/* Options */
+	int s, E, b;
+	char *tracefile;
+
+	/* Parse arguments */
+	int c;
+	while ((c = getopt(argc, argv, "hvs:E:b:t:")) != EOF) {
+		switch (c) {
 			case 'h':	/* Optional help flag that print usage info */
-				print_usage(argv[0]);
+				help(argv[0]);
 				return 0;
 			case 'v':	/* Optional verbose flag that display trace info */
 				verbose = 1;
@@ -127,15 +190,15 @@ int main(int argc, char const *argv[])
 				tracefile = optarg;
 				break;
 			case '?':	/* Get argumnets failed */
-				print_usage(argv[0]);
+				help(argv[0]);
 				return 1;
 		}
 	}
 
 	/* Check options */
-	if (!s || !E || !b) {
+	if (!s || !E || !b || !tracefile) {
 		printf("%s: Missing required command line argument\n", argv[0]);
-		print_usage(argv[0]);
+		help(argv[0]);
 		return 1;
 	} 
 
@@ -147,29 +210,21 @@ int main(int argc, char const *argv[])
 	}
 
 	/* Build cache */
-	cache = (struct line**) malloc(SET_COUNT*sizeof(struct line*)); 
-	for (int i = 0; i < SET_COUNT; ++i) {
-		cache[i] = (struct line*) malloc(E*sizeof(struct line));
-		/* Initial cache */
-		for (int j = 0; j < E; ++j) {
-			cache[i][j].valid = 0;
-			cache[i][j].tag = ULLONG_MAX;
-		}
-	}
+	struct cache *cachep = cache_create(s, b, E);
 
 	/* Load instrument */
 	char instr;
-	unsigned long long addr;
+	uint64_t addr;
 	int size;
-	while (fscanf(fp, " %c %llx,%d", &instr, &addr, &size) != EOF) {
+	while (fscanf(fp, " %c %lx,%d", &instr, &addr, &size) != EOF) {
 		if (verbose)
-			printf("%c %llx,%d", instr, addr, size);
+			printf("%c %lx,%d", instr, addr, size);
 		switch (instr) {
 			case 'M':	/* Data modify */
-				cache_access(addr);
+				cache_access(cachep, addr);
 			case 'L':	/* Data load */
 			case 'S':	/* Data store */
-				cache_access(addr);
+				cache_access(cachep, addr);
 				break;
 		}
 		if (verbose)
@@ -177,9 +232,7 @@ int main(int argc, char const *argv[])
 	}
 
 	/* Free cache */
-	for (int i = 0; i < SET_COUNT; ++i)
-		free(cache[i]);
-	free(cache);
+	cache_free(cachep);
 
 	/* Close file */
 	fclose(fp);
