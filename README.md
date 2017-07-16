@@ -16,7 +16,7 @@ This is my solution for labs in *Computer System:A Programmer's Perspective*
 | perlab | Completed |
 | cachelab | Completed |
 | proxylab | Completed |
-| malloclab | Not efficient enough |
+| malloclab | Completed |
 
 ## Note
 
@@ -35,3 +35,5 @@ This is my solution for labs in *Computer System:A Programmer's Perspective*
 - [深入理解计算机系统：性能试验](https://sine-x.com/csapp-perflab/)
 
 - [深入理解计算机系统：缓存实验](https://sine-x.com/csapp-cachelab/)
+
+- [深入理解计算机系统：内存分配实验](https://sine-x.com/csapp-malloclab/)
